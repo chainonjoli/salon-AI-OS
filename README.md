@@ -12,6 +12,7 @@
 - **お客様ページ**: https://chainonjoli.github.io/salon-AI-OS/
 - **オーナー管理画面**: https://chainonjoli.github.io/salon-AI-OS/admin.html （簡易PIN付き）
 - **設定エディタ**: https://chainonjoli.github.io/salon-AI-OS/editor.html
+- **AIコンテンツファクトリー**: https://chainonjoli.github.io/salon-AI-OS/factory.html
 
 | ファイル | 内容 |
 |---|---|
@@ -20,13 +21,19 @@
 | [`salon-config.js`](./salon-config.js) | **サロン設定ファイル（ナレッジ）**。現在は chainonjoli（伊勢市）の実データ |
 | [`salon-config.template.js`](./salon-config.template.js) | 新規サロン用の空テンプレート（コメント付き） |
 | [`editor.html`](./editor.html) | **設定エディタ**。フォーム編集→ライブプレビュー→`salon-config.js`書き出し |
-| [`server/worker.js`](./server/worker.js) | **AI受付ワーカー**（Cloudflare Workers用）。設置するとAI受付が本物のAIに |
+| [`factory.html`](./factory.html) | **AIコンテンツファクトリー**。テーマ1つでSNS・販促コンテンツ8種を一括生成（AI広報の実装） |
+| [`server/worker.js`](./server/worker.js) | **AIワーカー**（Cloudflare Workers用）。AI受付とコンテンツファクトリーが共用。設置すると本物のAIに |
 | [`docs/06_deploy.md`](./docs/06_deploy.md) | AI接続の設置手順（約30分・コピペのみ） |
 | [`docs/01_screen_flow.md`](./docs/01_screen_flow.md) | 画面遷移図（お客様側／オーナー側） |
 | [`docs/02_system_architecture.md`](./docs/02_system_architecture.md) | システム構成図・SaaS化を見据えたアーキテクチャ |
 | [`docs/03_database_design.md`](./docs/03_database_design.md) | データベース設計（ER図＋テーブル定義） |
 | [`docs/04_ai_knowledge.md`](./docs/04_ai_knowledge.md) | AIナレッジ構造（本システム最大の特徴） |
 | [`docs/05_roadmap.md`](./docs/05_roadmap.md) | Phase計画・今後追加すべき機能一覧 |
+| [`docs/10_factory_requirements.md`](./docs/10_factory_requirements.md) | コンテンツファクトリー：要件定義 |
+| [`docs/11_factory_features.md`](./docs/11_factory_features.md) | コンテンツファクトリー：機能一覧 |
+| [`docs/12_factory_ui.md`](./docs/12_factory_ui.md) | コンテンツファクトリー：画面設計 |
+| [`docs/13_factory_data.md`](./docs/13_factory_data.md) | コンテンツファクトリー：データ設計・API仕様 |
+| [`docs/14_factory_test.md`](./docs/14_factory_test.md) | コンテンツファクトリー：テスト・デバッグ記録 |
 
 > ⚠️ **管理画面のPINについて**：`salon-config.js` の `admin.pin` は公開リポジトリ上で誰でも読めます。
 > これは「通りすがりの覗き見を防ぐ」簡易ロックであり、本物の認証ではありません。
@@ -101,5 +108,5 @@ AIは毎回ゼロから考えません。サロンのコンセプト・文体・
 | Phase | 内容 | 状態 |
 |---|---|---|
 | **Phase 1** | AI受付／AI美容相談／FAQ／予約導線／LINE導線／管理画面 | 🚧 画面・体験は完成。AI受付の本接続コードあり（`server/`・設置手順は docs/06）。`salon-config.js` の `ai.endpoint` が空ならデモモード、設定すると実AIで応答 |
-| **Phase 2** | カルテ／SNS投稿生成／商品管理／分析 | 画面はプロトタイプに先行実装済み |
+| **Phase 2** | カルテ／SNS投稿生成／商品管理／分析 | 🚧 **SNS投稿生成＋商品管理は AIコンテンツファクトリー（`factory.html`）として実装済み**。テーマ1つで8種のコンテンツを一括生成、商品はPDF・写真からAI取り込み可。AI未接続でもお試しモードで動作 |
 | **Phase 3** | 予約システム／決済／EC／外部API連携 | 設計のみ（docs/05） |

@@ -1,0 +1,877 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AIコンテンツファクトリー</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✨</text></svg>">
+<style>
+  /* ============ tokens（index.html と共通の世界観） ============ */
+  :root{
+    --paper:#FCFBF9;
+    --surface:#F5F2EE;
+    --card:#FFFFFF;
+    --line:#E8E3DC;
+    --ink:#37322E;
+    --muted:#8B8378;
+    --accent:#A18072;
+    --accent-deep:#82655A;
+    --accent-soft:#F0E7E1;
+    --sage:#8FA08A;
+    --sage-soft:#EDF1EA;
+    --gold:#C2A36B;
+    --gold-soft:#F5EEDF;
+    --rose:#C08A80;
+    --rose-soft:#F6E9E6;
+    --radius:18px;
+    --serif:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --sans:"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI","Noto Sans JP",-apple-system,sans-serif;
+    color-scheme: light;
+  }
+  *{box-sizing:border-box}
+  [hidden]{display:none!important}
+  html,body{margin:0;padding:0}
+  body{background:var(--surface);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.75;-webkit-font-smoothing:antialiased}
+  button{font-family:inherit;font-size:inherit;color:inherit;background:none;border:none;padding:0;cursor:pointer}
+  button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+  input,textarea,select{font-family:inherit;font-size:inherit;color:inherit}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+  .eyebrow{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--accent-deep);font-weight:600}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:14px 22px;border-radius:999px;font-weight:600;font-size:14.5px;background:var(--ink);color:#fff;transition:opacity .15s}
+  .btn:active{opacity:.75}
+  .btn.accent{background:var(--accent-deep)}
+  .btn.ghost{background:var(--card);color:var(--ink);border:1px solid var(--line)}
+  .btn.danger{background:none;color:#A65B4E;border:1px solid #E5CBC4}
+  .btn.wide{width:100%}
+  .btn[disabled]{opacity:.55;pointer-events:none}
+  .chip{display:inline-block;padding:8px 14px;border-radius:999px;font-size:13px;background:var(--card);border:1px solid var(--line);color:var(--ink)}
+  .chip:active{background:var(--accent-soft)}
+  .chip.on{background:var(--accent-soft);border-color:var(--accent);font-weight:600}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px}
+  .pill{display:inline-block;font-size:11px;font-weight:600;padding:3px 10px;border-radius:999px;letter-spacing:.04em}
+  .pill.sage{background:var(--sage-soft);color:#5C7057}
+  .pill.gold{background:var(--gold-soft);color:#8A713F}
+  .pill.plain{background:var(--surface);color:var(--muted)}
+
+  /* ============ アプリ枠（スマホフレーム） ============ */
+  .wrap{min-height:100vh}
+  @media(min-width:768px){
+    .wrap{display:flex;align-items:flex-start;justify-content:center;padding:40px 20px}
+    .phone{width:400px;height:820px;border-radius:44px;border:1px solid var(--line);background:var(--paper);overflow:hidden;position:relative;box-shadow:0 30px 80px rgba(55,50,46,.14)}
+  }
+  .phone{background:var(--paper);position:relative;min-height:100vh}
+  @media(min-width:768px){.phone{min-height:0}}
+  .screens{position:absolute;inset:0;overflow-y:auto;padding-bottom:40px}
+  @media(max-width:767px){.screens{position:static;min-height:100vh}}
+  .screen{display:none;padding:0 20px 32px;animation:fade .22s ease}
+  .screen.active{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  .topbar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:10px;padding:16px 0 12px;background:var(--paper)}
+  .topbar .back{width:38px;height:38px;border-radius:50%;background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:16px;flex:none}
+  .topbar .t{font-weight:600;font-size:15px}
+
+  /* ============ ホーム ============ */
+  .f-hero{padding:44px 0 26px;text-align:center}
+  .f-hero .mark{width:56px;height:56px;border-radius:18px;margin:0 auto 14px;background:linear-gradient(135deg,var(--accent),var(--accent-deep));color:#fff;display:flex;align-items:center;justify-content:center;font-size:26px}
+  .f-hero h1{font-family:var(--serif);font-weight:500;font-size:24px;letter-spacing:.06em;margin:0 0 4px}
+  .f-hero p{font-size:12.5px;color:var(--muted);margin:0}
+  .home-note{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);background:var(--surface);border-radius:12px;padding:10px 14px;margin-bottom:18px}
+  .big-btns{display:flex;flex-direction:column;gap:14px}
+  .big-btn{display:flex;align-items:center;gap:16px;background:var(--card);border:1px solid var(--line);border-radius:22px;padding:22px 20px;text-align:left;width:100%}
+  .big-btn:active{background:var(--accent-soft)}
+  .big-btn .ic{width:52px;height:52px;border-radius:16px;background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:26px;flex:none}
+  .big-btn b{display:block;font-size:16.5px}
+  .big-btn span.d{font-size:12px;color:var(--muted)}
+  .big-btn .n{margin-left:auto;flex:none}
+  .big-btn.primary{background:linear-gradient(120deg,var(--accent-soft),#F7F1EC);border-color:#E5D6CC}
+  .big-btn.primary .ic{background:var(--accent-deep);color:#fff}
+
+  /* ============ 作る ============ */
+  .lbl{font-size:12.5px;font-weight:600;margin:18px 2px 8px;display:block}
+  .lbl small{font-weight:400;color:var(--muted)}
+  textarea.big{width:100%;min-height:96px;border:1px solid var(--line);border-radius:16px;padding:14px 16px;background:var(--card);font-size:15px;line-height:1.7;resize:vertical}
+  .hint-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+  .prod-chips{display:flex;flex-wrap:wrap;gap:8px}
+  .gen-loading{text-align:center;padding:40px 0 10px;color:var(--muted);font-size:13px;display:none}
+  .gen-loading.show{display:block}
+  .gen-loading .dots i{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent);margin:0 3px;animation:bounce 1s infinite}
+  .gen-loading .dots i:nth-child(2){animation-delay:.15s}
+  .gen-loading .dots i:nth-child(3){animation-delay:.3s}
+  @keyframes bounce{0%,60%,100%{transform:none;opacity:.4}30%{transform:translateY(-7px);opacity:1}}
+
+  /* ============ 生成結果 ============ */
+  .result-meta{font-size:12.5px;color:var(--muted);margin:2px 2px 14px}
+  .gen-card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:12px}
+  .gen-card .gh{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .gen-card .gh b{font-size:13.5px}
+  .gen-card .gh .copy{margin-left:auto;flex:none;font-size:12.5px;font-weight:600;color:var(--accent-deep);background:var(--accent-soft);border-radius:999px;padding:7px 14px}
+  .gen-card .gh .copy.done{background:var(--sage-soft);color:#5C7057}
+  .gen-body{font-size:13.5px;white-space:pre-wrap;overflow-wrap:break-word;line-height:1.8}
+  .gen-body.clamp{display:-webkit-box;-webkit-line-clamp:6;-webkit-box-orient:vertical;overflow:hidden}
+  .more{font-size:12px;color:var(--accent-deep);font-weight:600;margin-top:6px}
+
+  /* ============ 商品 ============ */
+  .prod-card{width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:12px;display:flex;gap:14px;align-items:center}
+  .prod-card:active{background:var(--accent-soft)}
+  .prod-card .ic{width:44px;height:44px;border-radius:14px;background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:22px;flex:none}
+  .prod-card b{display:block;font-size:14.5px}
+  .prod-card .d{font-size:12px;color:var(--muted);display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+  .empty{text-align:center;color:var(--muted);padding:44px 10px;font-size:13.5px}
+  .empty .big{font-size:40px;display:block;margin-bottom:10px}
+  .form-field{margin-bottom:14px}
+  .form-field label{font-size:12.5px;font-weight:600;display:block;margin:0 2px 6px}
+  .form-field label small{font-weight:400;color:var(--muted)}
+  .form-field input,.form-field textarea{width:100%;border:1px solid var(--line);border-radius:14px;padding:12px 14px;background:var(--card);font-size:14.5px;line-height:1.7}
+  .form-field textarea{min-height:72px;resize:vertical}
+  .import-btn{width:100%;display:flex;align-items:center;gap:12px;background:linear-gradient(120deg,var(--gold-soft),#FBF6EA);border:1px solid #EADFC8;border-radius:16px;padding:15px 16px;text-align:left;margin-bottom:18px}
+  .import-btn .ic{font-size:22px}
+  .import-btn b{display:block;font-size:14px}
+  .import-btn span.d{font-size:11.5px;color:var(--muted)}
+
+  /* ============ 履歴 ============ */
+  .his-card{width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:15px 16px;margin-bottom:12px}
+  .his-card:active{background:var(--accent-soft)}
+  .his-card b{display:block;font-size:14px;margin-bottom:2px}
+  .his-card .d{font-size:11.5px;color:var(--muted)}
+
+  /* ============ 設定 ============ */
+  .set-h{font-family:var(--serif);font-size:16px;font-weight:500;letter-spacing:.05em;margin:22px 2px 10px}
+  .tone-chips{display:flex;gap:8px}
+  .tone-chips .chip{flex:1;text-align:center}
+  .status-ok{color:#5C7057;font-size:12.5px;font-weight:600}
+  .status-ng{color:#A65B4E;font-size:12.5px;font-weight:600}
+  select.sel{width:100%;border:1px solid var(--line);border-radius:14px;padding:12px 14px;background:var(--card);font-size:14.5px;-webkit-appearance:none;appearance:none}
+
+  #toast{position:fixed;left:50%;bottom:40px;transform:translateX(-50%) translateY(16px);background:var(--ink);color:#fff;font-size:13px;padding:11px 20px;border-radius:999px;opacity:0;pointer-events:none;transition:.25s;z-index:99;white-space:nowrap;max-width:92vw}
+  #toast.show{opacity:1;transform:translateX(-50%)}
+</style>
+
+<div class="wrap">
+  <div class="phone">
+    <div class="screens" id="f-screens">
+
+      <!-- ================= ホーム ================= -->
+      <section class="screen active" id="f-home">
+        <div class="f-hero">
+          <div class="mark">✨</div>
+          <span class="eyebrow">AI CONTENT FACTORY</span>
+          <h1>AIコンテンツファクトリー</h1>
+          <p id="home-shop"></p>
+        </div>
+        <div class="home-note" id="home-demo-note" hidden><span>💡</span><span>いまはお試しモードです。「設定」からAIをつなぐと、あなたのお店の言葉で本格生成できます。</span></div>
+        <div class="big-btns">
+          <button class="big-btn primary" onclick="goF('f-create')">
+            <span class="ic">✨</span>
+            <span><b>コンテンツを作る</b><span class="d">テーマひとつでSNS・販促文を一括作成</span></span>
+          </button>
+          <button class="big-btn" onclick="goF('f-products')">
+            <span class="ic">🧴</span>
+            <span><b>商品を登録する</b><span class="d">商品情報をAIが覚えます</span></span>
+            <span class="n pill plain" id="home-prod-n"></span>
+          </button>
+          <button class="big-btn" onclick="goF('f-history')">
+            <span class="ic">🗂</span>
+            <span><b>過去のコンテンツを見る</b><span class="d">作った文章をいつでもコピー</span></span>
+            <span class="n pill plain" id="home-his-n"></span>
+          </button>
+          <button class="big-btn" onclick="goF('f-settings')">
+            <span class="ic">⚙️</span>
+            <span><b>設定</b><span class="d">お店のこと・AI接続</span></span>
+          </button>
+        </div>
+      </section>
+
+      <!-- ================= 作る ================= -->
+      <section class="screen" id="f-create">
+        <div class="topbar"><button class="back" onclick="goF('f-home')">←</button><span class="t">コンテンツを作る</span></div>
+
+        <label class="lbl" for="theme-input">1. テーマ <small>（自由に書いてください）</small></label>
+        <textarea id="theme-input" class="big" placeholder="例：乾燥肌向けの保湿ケアのご紹介"></textarea>
+        <div class="hint-chips" id="theme-hints"></div>
+
+        <span class="lbl">2. 商品を選ぶ <small>（なくてもOK）</small></span>
+        <div class="prod-chips" id="create-prods"></div>
+
+        <div style="height:22px"></div>
+        <button class="btn accent wide" id="gen-btn" onclick="startGenerate()">✨ この内容でつくる</button>
+        <div class="gen-loading" id="gen-loading">
+          <div class="dots"><i></i><i></i><i></i></div>
+          <p id="gen-loading-text" style="margin:12px 0 0">AIが8種類のコンテンツを書いています…</p>
+        </div>
+        <p style="font-size:11.5px;color:var(--muted);text-align:center;margin-top:14px">Instagram投稿・リール台本・LINE・ブログ・メルマガ・<br>ショート動画台本・キャプション・ハッシュタグ を一度に作ります</p>
+      </section>
+
+      <!-- ================= 生成結果 ================= -->
+      <section class="screen" id="f-result">
+        <div class="topbar"><button class="back" onclick="goF(resultBack)">←</button><span class="t">できあがり</span></div>
+        <p class="result-meta" id="result-meta"></p>
+        <div id="result-cards"></div>
+        <button class="btn ghost wide" style="margin-bottom:10px" onclick="copyAll()">📋 まとめてコピー</button>
+        <button class="btn accent wide" style="margin-bottom:10px" id="result-again" onclick="goF('f-create')">✨ もう一度つくる</button>
+        <button class="btn ghost danger wide" style="margin-bottom:10px" id="result-del" hidden onclick="deleteHistoryItem()">この履歴を削除</button>
+        <button class="btn wide" onclick="goF('f-home')">🏠 ホームへ</button>
+      </section>
+
+      <!-- ================= 商品一覧 ================= -->
+      <section class="screen" id="f-products">
+        <div class="topbar"><button class="back" onclick="goF('f-home')">←</button><span class="t">商品を登録する</span></div>
+        <div id="prod-list"></div>
+        <button class="btn accent wide" onclick="openProductEdit(null)">＋ 商品を追加</button>
+      </section>
+
+      <!-- ================= 商品編集 ================= -->
+      <section class="screen" id="f-product-edit">
+        <div class="topbar"><button class="back" onclick="goF('f-products')">←</button><span class="t" id="pe-title">商品を追加</span></div>
+
+        <button class="import-btn" onclick="pickImportFile()">
+          <span class="ic">📄</span>
+          <span><b id="import-label">PDF・写真から取り込む</b><span class="d" id="import-note">カタログや資料を選ぶと、AIが内容を読み取って下に入力します</span></span>
+        </button>
+        <input type="file" id="import-file" accept="application/pdf,image/jpeg,image/png,image/webp" hidden>
+
+        <div class="form-field"><label for="pe-name">商品名 <small>※必須</small></label><input id="pe-name" placeholder="例：モイストリペアセラム"></div>
+        <div class="form-field"><label for="pe-brand">ブランド名</label><input id="pe-brand" placeholder="例：○○コスメ"></div>
+        <div class="form-field"><label for="pe-features">特徴</label><textarea id="pe-features" placeholder="例：セラミド3種配合の高保湿美容液。とろみのあるテクスチャー"></textarea></div>
+        <div class="form-field"><label for="pe-effects">効果</label><textarea id="pe-effects" placeholder="例：乾燥による小じわを目立たなくする。うるおいのある肌へ"></textarea></div>
+        <div class="form-field"><label for="pe-usage">使用方法</label><textarea id="pe-usage" placeholder="例：洗顔後、化粧水のあとに2プッシュを顔全体になじませる"></textarea></div>
+        <div class="form-field"><label for="pe-target">おすすめの人</label><textarea id="pe-target" placeholder="例：乾燥・敏感肌の方。エアコンで肌がつっぱる方"></textarea></div>
+        <div class="form-field"><label for="pe-cautions">注意点</label><textarea id="pe-cautions" placeholder="例：お肌に異常があるときは使用を中止してください"></textarea></div>
+
+        <button class="btn accent wide" style="margin:6px 0 10px" onclick="saveProduct()">保存する</button>
+        <button class="btn danger wide" id="pe-delete" hidden onclick="deleteProduct()">この商品を削除</button>
+      </section>
+
+      <!-- ================= 履歴 ================= -->
+      <section class="screen" id="f-history">
+        <div class="topbar"><button class="back" onclick="goF('f-home')">←</button><span class="t">過去のコンテンツ</span></div>
+        <div id="his-list"></div>
+      </section>
+
+      <!-- ================= 設定 ================= -->
+      <section class="screen" id="f-settings">
+        <div class="topbar"><button class="back" onclick="goF('f-home')">←</button><span class="t">設定</span></div>
+
+        <h2 class="set-h">お店のこと</h2>
+        <div class="form-field"><label for="set-shop">お店の名前</label><input id="set-shop" placeholder="例：chainonjoli"></div>
+        <div class="form-field"><label for="set-industry">業種</label>
+          <select id="set-industry" class="sel">
+            <option>エステ</option><option>美容室</option><option>ネイル</option><option>アイラッシュ</option>
+            <option>整体院</option><option>リラクゼーション</option><option>クリニック</option><option>その他</option>
+          </select>
+        </div>
+        <div class="form-field"><label for="set-intro">お店のひとこと紹介</label><textarea id="set-intro" placeholder="例：伊勢市の隠れ家プライベートエステ"></textarea></div>
+        <div class="form-field"><label>文体</label>
+          <div class="tone-chips">
+            <button class="chip" data-tone="soft" onclick="setTone('soft')">やわらかい</button>
+            <button class="chip" data-tone="formal" onclick="setTone('formal')">きちんと</button>
+            <button class="chip" data-tone="genki" onclick="setTone('genki')">元気</button>
+          </div>
+        </div>
+        <p style="font-size:11.5px;color:var(--muted);margin:4px 2px 0">入力した内容は自動で保存され、コンテンツの文章に反映されます。</p>
+
+        <h2 class="set-h">AI接続</h2>
+        <div class="form-field"><label for="set-endpoint">接続URL <small>（設置手順は docs/06_deploy.md）</small></label>
+          <input id="set-endpoint" placeholder="https://…workers.dev" inputmode="url" autocapitalize="off">
+        </div>
+        <button class="btn ghost wide" style="margin-bottom:8px" onclick="testEndpoint()">接続をテストする</button>
+        <p id="set-status" style="font-size:12.5px;margin:0 2px"></p>
+
+        <h2 class="set-h">データ</h2>
+        <button class="btn ghost wide" style="margin-bottom:10px" onclick="exportData()">書き出し（バックアップ）</button>
+        <button class="btn ghost wide" onclick="pickImportData()">読み込み（バックアップから復元）</button>
+        <input type="file" id="data-file" accept="application/json" hidden>
+        <p style="font-size:11.5px;color:var(--muted);margin:10px 2px 0">データはこのスマホ（ブラウザ）の中だけに保存されます。機種変更のときは書き出してから読み込んでください。</p>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<div id="toast" role="status"></div>
+
+<script src="salon-config.js"></script>
+<script>
+/* =========================================================
+   AIコンテンツファクトリー — 全業種共通エンジン
+   店舗固有の情報は設定画面（localStorage）と salon-config.js
+   から読み込みます。このファイルに店名・価格を書かないこと。
+   データ構造は docs/13_factory_data.md を参照。
+   ========================================================= */
+
+/* ============ コンテンツ種別（8種・固定） ============ */
+const KINDS = [
+  { key:'instagram',  label:'Instagram投稿',        ic:'📸' },
+  { key:'reel',       label:'Instagramリール台本',  ic:'🎬' },
+  { key:'line',       label:'LINE配信文',           ic:'💬' },
+  { key:'blog',       label:'ブログ記事',           ic:'✍️' },
+  { key:'mail',       label:'メールマガジン',       ic:'✉️' },
+  { key:'shortVideo', label:'ショート動画台本',     ic:'📱' },
+  { key:'caption',    label:'キャプション',         ic:'💭' },
+  { key:'hashtags',   label:'ハッシュタグ',         ic:'#️⃣' },
+];
+
+/* ============ 保存（localStorage） ============ */
+const store = {
+  get(key, fallback){
+    try{ const v = localStorage.getItem('factory.'+key); return v ? JSON.parse(v) : fallback; }
+    catch(e){ return fallback; }
+  },
+  set(key, val){ localStorage.setItem('factory.'+key, JSON.stringify(val)); }
+};
+
+const SC = window.SALON_CONFIG || null;
+let profile = store.get('profile', null);
+if(!profile){
+  /* 初回起動：salon-config.js があれば初期値として取り込む */
+  profile = {
+    shopName: SC ? SC.brand.name : '',
+    industry: 'エステ',
+    intro: SC ? SC.brand.tagline : '',
+    tone: 'soft',
+    aiEndpoint: (SC && SC.ai && SC.ai.endpoint) || ''
+  };
+  store.set('profile', profile);
+}
+let products = store.get('products', []);
+let history  = store.get('history', []);
+
+/* salon-config.js のテーマカラーがあれば合わせる */
+if(SC && SC.theme){
+  const r = document.documentElement.style;
+  r.setProperty('--accent', SC.theme.accent);
+  r.setProperty('--accent-deep', SC.theme.accentDeep);
+  r.setProperty('--accent-soft', SC.theme.accentSoft);
+}
+
+const aiOn = () => !!(profile.aiEndpoint && profile.aiEndpoint.trim());
+
+/* ============ 画面切替 ============ */
+function goF(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('active',s.id===id));
+  document.getElementById('f-screens').scrollTo(0,0);
+  window.scrollTo(0,0);
+  if(id==='f-home') renderHome();
+  if(id==='f-create') renderCreate();
+  if(id==='f-products') renderProducts();
+  if(id==='f-history') renderHistory();
+  if(id==='f-settings') renderSettings();
+}
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),2400);
+}
+function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+/* ============ コピー ============ */
+async function copyText(text){
+  try{
+    await navigator.clipboard.writeText(text);
+  }catch(e){
+    const ta=document.createElement('textarea');
+    ta.value=text;ta.style.position='fixed';ta.style.opacity='0';
+    document.body.appendChild(ta);ta.select();
+    try{document.execCommand('copy');}finally{ta.remove();}
+  }
+}
+
+/* ============ ホーム ============ */
+function renderHome(){
+  document.getElementById('home-shop').textContent =
+    profile.shopName ? profile.shopName + ' 専用' : 'テーマひとつで、今日の発信がぜんぶ揃う';
+  document.getElementById('home-demo-note').hidden = aiOn();
+  document.getElementById('home-prod-n').textContent = products.length ? products.length+'件' : '';
+  document.getElementById('home-his-n').textContent = history.length ? history.length+'件' : '';
+}
+
+/* ============ 作る ============ */
+const THEME_HINTS = ['新メニューのお知らせ','季節の変わり目のケア','お客様の声のご紹介','キャンペーン告知','自宅でできる簡単ケア','ご予約状況のお知らせ'];
+let selectedProductId = null;
+
+function renderCreate(){
+  const h=document.getElementById('theme-hints');
+  h.innerHTML='';
+  THEME_HINTS.forEach(t=>{
+    const b=document.createElement('button');b.className='chip';b.textContent=t;
+    b.onclick=()=>{document.getElementById('theme-input').value=t;};
+    h.appendChild(b);
+  });
+  const p=document.getElementById('create-prods');
+  p.innerHTML='';
+  if(products.length===0){
+    const b=document.createElement('button');b.className='chip';b.textContent='＋ 商品を登録する';
+    b.onclick=()=>goF('f-products');p.appendChild(b);
+  }else{
+    products.forEach(pr=>{
+      const b=document.createElement('button');b.className='chip'+(selectedProductId===pr.id?' on':'');
+      b.textContent='🧴 '+pr.name;
+      b.onclick=()=>{selectedProductId = selectedProductId===pr.id ? null : pr.id; renderCreate();};
+      p.appendChild(b);
+    });
+  }
+}
+
+let currentResult=null;   /* 表示中の履歴アイテム */
+let resultBack='f-create';
+
+async function startGenerate(){
+  const theme=document.getElementById('theme-input').value.trim();
+  const product=products.find(p=>p.id===selectedProductId)||null;
+  if(!theme && !product){ toast('テーマを入力するか、商品を選んでください'); return; }
+
+  const btn=document.getElementById('gen-btn');
+  const loading=document.getElementById('gen-loading');
+  btn.disabled=true;
+  loading.classList.add('show');
+  document.getElementById('gen-loading-text').textContent =
+    aiOn() ? 'AIが8種類のコンテンツを書いています…（30秒ほどかかります）' : 'お試しモードで8種類のコンテンツを作っています…';
+
+  let contents=null, mode='demo';
+  if(aiOn()){
+    try{
+      contents=await aiGenerate(theme, product);
+      mode='ai';
+    }catch(e){
+      console.warn('ai generate failed', e);
+      toast('AIにつながらなかったため、お試しモードで作成しました');
+    }
+  }
+  if(!contents){
+    await new Promise(r=>setTimeout(r,900));
+    contents=demoGenerate(theme, product);
+  }
+
+  const item={
+    id:'h_'+Date.now(),
+    theme: theme||null,
+    productId: product?product.id:null,
+    productName: product?product.name:null,
+    mode,
+    createdAt:new Date().toISOString(),
+    contents
+  };
+  history.unshift(item);
+  if(history.length>100) history.length=100;
+  store.set('history',history);
+
+  btn.disabled=false;
+  loading.classList.remove('show');
+  showResult(item,'f-create');
+}
+
+/* ============ AI生成（Worker経由） ============ */
+async function aiGenerate(theme, product){
+  const res=await fetch(profile.aiEndpoint,{
+    method:'POST',
+    headers:{'content-type':'application/json'},
+    body:JSON.stringify({
+      dept:'factory', action:'generate',
+      input:{
+        theme: theme||'',
+        product: product ? {
+          name:product.name, brand:product.brand, features:product.features,
+          effects:product.effects, usage:product.usage, target:product.target, cautions:product.cautions
+        } : null,
+        profile:{ shopName:profile.shopName, industry:profile.industry, intro:profile.intro, tone:profile.tone }
+      }
+    })
+  });
+  if(!res.ok) throw new Error('http '+res.status);
+  const data=await res.json();
+  if(!data.contents || typeof data.contents!=='object') throw new Error('bad response');
+  const out={};
+  KINDS.forEach(k=>{ out[k.key]=String(data.contents[k.key]||'').trim(); });
+  if(!out.instagram) throw new Error('empty response');
+  return out;
+}
+
+/* ============ お試しモード生成（AI未接続でも全機能を体験できる） ============ */
+function demoGenerate(theme, product){
+  const shop = profile.shopName || 'あなたのお店';
+  const intro = profile.intro || '';
+  const subject = theme || (product ? product.name+'のご紹介' : '');
+  const pName = product ? product.name : '';
+  const tone = profile.tone;
+  const end  = tone==='genki' ? '！' : '。';
+  const invite = tone==='formal'
+    ? 'ご興味のある方は、お気軽にお問い合わせください。'
+    : tone==='genki' ? '気になった方はぜひメッセージくださいね！' : '気になる方は、お気軽にご相談くださいね。';
+
+  const pLines = product ? [
+    product.features && '✔ '+product.features,
+    product.effects  && '✔ '+product.effects,
+    product.target   && '▶ こんな方に：'+product.target,
+  ].filter(Boolean).join('\n') : '';
+
+  const instagram =
+`【${subject}】
+
+こんにちは、${shop}です${end}
+${intro ? intro+'\n' : ''}
+今日は「${subject}」についてお届けします${end}
+${pLines ? '\n'+pLines+'\n' : ''}
+${product && product.usage ? '使い方はとても簡単。'+product.usage+'\n' : ''}
+${invite}
+
+ご予約・ご相談はプロフィールのリンクからどうぞ🌿`;
+
+  const reel =
+`＜リール台本（15〜30秒）＞
+
+■ 0-3秒（フック）
+テロップ：「${subject}、知ってますか？」
+映像：施術・商品のアップ
+
+■ 4-20秒（本編）
+セリフ：「${shop}から、${subject.length>20?'今日のお知らせです':'「'+subject+'」のご紹介です'}${end}」
+${product ? 'セリフ：「'+pName+'は、'+(product.features||'こだわりの一品')+'」\n映像：'+pName+'を手に取るカット' : '映像：ビフォー→アフターのカット'}
+
+■ 21-30秒（締め）
+セリフ：「${invite}」
+テロップ：「詳しくはプロフィールへ」`;
+
+  const line =
+`${shop}です🌿
+いつもありがとうございます${end}
+
+「${subject}」のお知らせです${end}
+${product ? pName+(product.effects ? '：'+product.effects : 'のご案内です。')+'\n' : ''}
+${invite}
+このLINEにそのまま返信していただけます${end}`;
+
+  const blog =
+`# ${subject}｜${shop}
+
+こんにちは、${shop}です${end}${intro ? '（'+intro+'）' : ''}
+
+## なぜ今「${subject}」なのか
+最近、お客様からのご相談が増えているテーマです${end}放っておくと気になりが大きくなる前に、早めのケアがおすすめです${end}
+
+## ${shop}のご提案
+${product
+  ? pName+'をご用意しています'+end+'\n\n'+[product.features&&'**特徴**：'+product.features, product.effects&&'**期待できること**：'+product.effects, product.usage&&'**使い方**：'+product.usage, product.target&&'**おすすめの方**：'+product.target].filter(Boolean).join('\n')
+  : '当店では、お一人おひとりの状態に合わせたケアをご提案しています'+end}
+
+## まとめ
+${invite}
+ご予約は公式LINEまたはお電話で承っています${end}
+${product && product.cautions ? '\n※ '+product.cautions : ''}`;
+
+  const mail =
+`件名：【${shop}】${subject}のご案内
+
+いつも${shop}をご利用いただきありがとうございます${end}
+
+本日は「${subject}」についてご案内いたします${end}
+${product ? '\n■ '+pName+(product.brand?'（'+product.brand+'）':'')+'\n'+[product.features,product.effects].filter(Boolean).join('\n')+'\n' : ''}
+${invite}
+
+ご予約・ご質問はこのメールへの返信、または公式LINEからどうぞ${end}
+今後ともよろしくお願いいたします${end}
+
+${shop}`;
+
+  const shortVideo =
+`＜ショート動画台本（30〜60秒）＞
+
+【シーン1】0-5秒
+ナレーション：「${subject}で悩んでいませんか？」
+画面：お悩みイメージ＋大きめテロップ
+
+【シーン2】6-30秒
+ナレーション：「${shop}では${product ? pName+'を使ったケアをご用意しています'+end : 'あなたに合わせたケアをご提案しています'+end}」
+${product && product.features ? '画面：'+pName+'のアップ／テロップ「'+product.features.slice(0,30)+'」' : '画面：施術風景'}
+
+【シーン3】31-45秒
+ナレーション：「${product && product.usage ? '使い方は簡単。'+product.usage : '初めての方もご安心ください'+end}」
+
+【シーン4】46-60秒
+ナレーション：「${invite}」
+画面：店内＋ロゴ＋「プロフィールのリンクから」`;
+
+  const caption =
+`${subject}${end}${product ? ' '+pName+'、'+shop+'で取り扱っています'+end : ' 詳しくは'+shop+'まで'+end} ${invite}`;
+
+  const indTags = {
+    'エステ':['#エステ','#フェイシャル','#美肌ケア','#肌質改善','#プライベートサロン'],
+    '美容室':['#美容室','#ヘアケア','#ヘアスタイル','#トリートメント','#サロンモデル'],
+    'ネイル':['#ネイル','#ネイルデザイン','#ネイルサロン','#ジェルネイル','#ネイルケア'],
+    'アイラッシュ':['#マツエク','#アイラッシュ','#まつげパーマ','#アイブロウ','#目元ケア'],
+    '整体院':['#整体','#骨盤矯正','#肩こり改善','#腰痛ケア','#姿勢改善'],
+    'リラクゼーション':['#リラクゼーション','#マッサージ','#癒しの時間','#リンパケア','#ご自愛'],
+    'クリニック':['#美容クリニック','#スキンケア','#美容医療','#肌治療','#カウンセリング'],
+    'その他':['#お店','#おすすめ','#サービス','#お知らせ','#暮らし']
+  };
+  const base=indTags[profile.industry]||indTags['その他'];
+  const shopTag = profile.shopName ? '#'+profile.shopName.replace(/\s+/g,'') : '';
+  const themeTags = subject ? subject.replace(/[、。！!？?\s]+/g,' ').split(' ').filter(w=>w.length>=2&&w.length<=8).slice(0,3).map(w=>'#'+w) : [];
+  const prodTags = product ? ['#'+product.name.replace(/\s+/g,'')] : [];
+  const hashtags = [...new Set([
+    ...base, ...themeTags, ...prodTags, shopTag,
+    '#'+profile.industry+'サロン','#美容好きな人と繋がりたい','#ご褒美時間','#大人の女性','#丁寧な暮らし',
+    '#セルフケア','#おうち美容','#予約制サロン','#癒し','#キレイになりたい'
+  ].filter(Boolean))].slice(0,20).join(' ');
+
+  return { instagram, reel, line, blog, mail, shortVideo, caption, hashtags };
+}
+
+/* ============ 結果表示 ============ */
+function showResult(item, backTo){
+  currentResult=item;
+  resultBack=backTo||'f-home';
+  document.getElementById('result-del').hidden = backTo!=='f-history';
+  document.getElementById('result-again').hidden = false;
+  const d=new Date(item.createdAt);
+  const meta=[
+    item.theme ? 'テーマ：'+item.theme : null,
+    item.productName ? '商品：'+item.productName : null,
+    d.toLocaleDateString('ja-JP')+' '+d.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'}),
+    item.mode==='demo' ? '（お試しモードで作成）' : null
+  ].filter(Boolean).join('　');
+  document.getElementById('result-meta').textContent=meta;
+
+  const box=document.getElementById('result-cards');
+  box.innerHTML='';
+  KINDS.forEach(k=>{
+    const text=item.contents[k.key]||'';
+    if(!text) return;
+    const card=document.createElement('div');card.className='gen-card';
+    const gh=document.createElement('div');gh.className='gh';
+    gh.innerHTML='<span>'+k.ic+'</span><b>'+esc(k.label)+'</b>';
+    const cp=document.createElement('button');cp.className='copy';cp.textContent='コピー';
+    cp.onclick=async()=>{
+      await copyText(text);
+      toast(k.label+'をコピーしました');
+      cp.textContent='✓ コピー済み';cp.classList.add('done');
+      setTimeout(()=>{cp.textContent='コピー';cp.classList.remove('done');},2200);
+    };
+    gh.appendChild(cp);
+    const body=document.createElement('div');body.className='gen-body clamp';body.textContent=text;
+    card.appendChild(gh);card.appendChild(body);
+    const lines=text.split('\n').length;
+    if(lines>6||text.length>220){
+      const more=document.createElement('button');more.className='more';more.textContent='すべて見る ▾';
+      more.onclick=()=>{
+        const open=body.classList.toggle('clamp');
+        more.textContent=open?'すべて見る ▾':'たたむ ▴';
+      };
+      card.appendChild(more);
+    }else{
+      body.classList.remove('clamp');
+    }
+    box.appendChild(card);
+  });
+  goF('f-result');
+}
+
+async function copyAll(){
+  if(!currentResult) return;
+  const text=KINDS
+    .filter(k=>currentResult.contents[k.key])
+    .map(k=>'■ '+k.label+'\n'+currentResult.contents[k.key])
+    .join('\n\n――――――――――\n\n');
+  await copyText(text);
+  toast('8種類すべてをコピーしました');
+}
+
+/* ============ 商品 ============ */
+let editingId=null;
+
+function renderProducts(){
+  const box=document.getElementById('prod-list');
+  if(products.length===0){
+    box.innerHTML='<div class="empty"><span class="big">🧴</span>まだ商品がありません。<br>最初の商品を登録しましょう。<br><span style="font-size:12px">登録すると、AIが商品の言葉で文章を作れるようになります。</span></div>';
+    return;
+  }
+  box.innerHTML='';
+  products.forEach(p=>{
+    const b=document.createElement('button');b.className='prod-card';
+    b.innerHTML='<span class="ic">🧴</span><span style="min-width:0"><b>'+esc(p.name)+'</b><span class="d">'+esc(p.brand||p.features||'')+'</span></span><span style="margin-left:auto;color:var(--muted)">›</span>';
+    b.onclick=()=>openProductEdit(p.id);
+    box.appendChild(b);
+  });
+}
+
+function openProductEdit(id){
+  editingId=id;
+  const p=id?products.find(x=>x.id===id):null;
+  document.getElementById('pe-title').textContent=p?'商品を編集':'商品を追加';
+  document.getElementById('pe-delete').hidden=!p;
+  ['name','brand','features','effects','usage','target','cautions'].forEach(f=>{
+    document.getElementById('pe-'+f).value=p?(p[f]||''):'';
+  });
+  document.getElementById('import-label').textContent='PDF・写真から取り込む';
+  document.getElementById('import-note').textContent = aiOn()
+    ? 'カタログや資料を選ぶと、AIが内容を読み取って下に入力します'
+    : 'AI接続後に使えます（いまは手入力してください）';
+  goF('f-product-edit');
+}
+
+function saveProduct(){
+  const val=f=>document.getElementById('pe-'+f).value.trim();
+  if(!val('name')){ toast('商品名を入力してください'); return; }
+  const now=new Date().toISOString();
+  if(editingId){
+    const p=products.find(x=>x.id===editingId);
+    ['name','brand','features','effects','usage','target','cautions'].forEach(f=>p[f]=val(f));
+    p.updatedAt=now;
+  }else{
+    products.push({
+      id:'p_'+Date.now(),
+      name:val('name'),brand:val('brand'),features:val('features'),effects:val('effects'),
+      usage:val('usage'),target:val('target'),cautions:val('cautions'),
+      source:'manual',createdAt:now,updatedAt:now
+    });
+  }
+  store.set('products',products);
+  toast('保存しました');
+  goF('f-products');
+}
+
+function deleteProduct(){
+  const p=products.find(x=>x.id===editingId);
+  if(!p) return;
+  if(!confirm('「'+p.name+'」を削除しますか？')) return;
+  products=products.filter(x=>x.id!==editingId);
+  store.set('products',products);
+  toast('削除しました');
+  goF('f-products');
+}
+
+/* ---- PDF・画像取り込み ---- */
+function pickImportFile(){
+  if(!aiOn()){ toast('「設定」からAIをつなぐと使えます'); return; }
+  document.getElementById('import-file').click();
+}
+document.getElementById('import-file').addEventListener('change',async e=>{
+  const file=e.target.files[0];
+  e.target.value='';
+  if(!file) return;
+  if(file.size>8*1024*1024){ toast('8MB以下のファイルを選んでください'); return; }
+  const lbl=document.getElementById('import-label');
+  const note=document.getElementById('import-note');
+  lbl.textContent='AIが読み取っています…';
+  note.textContent='30秒ほどお待ちください';
+  try{
+    const b64=await new Promise((ok,ng)=>{
+      const r=new FileReader();
+      r.onload=()=>ok(String(r.result).split(',')[1]);
+      r.onerror=ng;
+      r.readAsDataURL(file);
+    });
+    const res=await fetch(profile.aiEndpoint,{
+      method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({dept:'factory',action:'extract',file:{mediaType:file.type||'application/pdf',data:b64}})
+    });
+    if(!res.ok) throw new Error('http '+res.status);
+    const data=await res.json();
+    if(!data.product) throw new Error('bad response');
+    ['name','brand','features','effects','usage','target','cautions'].forEach(f=>{
+      if(data.product[f]) document.getElementById('pe-'+f).value=String(data.product[f]);
+    });
+    toast('読み取りました。内容を確認して保存してください');
+  }catch(err){
+    console.warn('extract failed',err);
+    toast('読み取れませんでした。お手数ですが手入力をお願いします');
+  }finally{
+    lbl.textContent='PDF・写真から取り込む';
+    note.textContent='カタログや資料を選ぶと、AIが内容を読み取って下に入力します';
+  }
+});
+
+/* ============ 履歴 ============ */
+function renderHistory(){
+  const box=document.getElementById('his-list');
+  if(history.length===0){
+    box.innerHTML='<div class="empty"><span class="big">🗂</span>まだ作ったコンテンツがありません。<br>「コンテンツを作る」から始めましょう。</div>';
+    return;
+  }
+  box.innerHTML='';
+  history.forEach(h=>{
+    const d=new Date(h.createdAt);
+    const n=KINDS.filter(k=>h.contents[k.key]).length;
+    const b=document.createElement('button');b.className='his-card';
+    b.innerHTML='<b>'+esc(h.theme||h.productName||'（無題）')+'</b><span class="d">'
+      +d.toLocaleDateString('ja-JP')+' '+d.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})
+      +'　'+n+'種類'+(h.productName&&h.theme?'　🧴 '+esc(h.productName):'')
+      +(h.mode==='demo'?'　（お試し）':'')+'</span>';
+    b.onclick=()=>showResult(h,'f-history');
+    box.appendChild(b);
+  });
+}
+
+function deleteHistoryItem(){
+  if(!currentResult) return;
+  if(!confirm('この履歴を削除しますか？')) return;
+  history=history.filter(h=>h.id!==currentResult.id);
+  store.set('history',history);
+  toast('削除しました');
+  goF('f-history');
+}
+
+/* ============ 設定 ============ */
+function renderSettings(){
+  document.getElementById('set-shop').value=profile.shopName||'';
+  document.getElementById('set-industry').value=profile.industry||'エステ';
+  document.getElementById('set-intro').value=profile.intro||'';
+  document.getElementById('set-endpoint').value=profile.aiEndpoint||'';
+  document.querySelectorAll('.tone-chips .chip').forEach(c=>c.classList.toggle('on',c.dataset.tone===profile.tone));
+  document.getElementById('set-status').textContent = aiOn() ? '' : 'いまはお試しモードです（URL未設定）';
+  document.getElementById('set-status').className='';
+}
+function saveProfile(){ store.set('profile',profile); }
+function setTone(t){ profile.tone=t; saveProfile(); renderSettings(); }
+document.getElementById('set-shop').addEventListener('input',e=>{profile.shopName=e.target.value.trim();saveProfile();});
+document.getElementById('set-industry').addEventListener('change',e=>{profile.industry=e.target.value;saveProfile();});
+document.getElementById('set-intro').addEventListener('input',e=>{profile.intro=e.target.value.trim();saveProfile();});
+document.getElementById('set-endpoint').addEventListener('input',e=>{profile.aiEndpoint=e.target.value.trim();saveProfile();});
+
+async function testEndpoint(){
+  const st=document.getElementById('set-status');
+  if(!aiOn()){ st.textContent='URLを入力してください'; st.className='status-ng'; return; }
+  st.textContent='接続を確認しています…'; st.className='';
+  try{
+    const res=await fetch(profile.aiEndpoint,{
+      method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({dept:'factory',action:'ping'})
+    });
+    const data=await res.json().catch(()=>({}));
+    if(res.ok && data.ok){ st.textContent='✓ 接続できました。AIモードで動いています'; st.className='status-ok'; }
+    else throw new Error('bad response');
+  }catch(e){
+    st.textContent='接続できませんでした。URLと設置（docs/06）をご確認ください';
+    st.className='status-ng';
+  }
+}
+
+/* ---- バックアップ ---- */
+function exportData(){
+  const blob=new Blob([JSON.stringify({profile,products,history},null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='content-factory-backup-'+new Date().toISOString().slice(0,10)+'.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast('書き出しました');
+}
+function pickImportData(){ document.getElementById('data-file').click(); }
+document.getElementById('data-file').addEventListener('change',e=>{
+  const file=e.target.files[0];
+  e.target.value='';
+  if(!file) return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const d=JSON.parse(String(r.result));
+      if(!d.profile||!Array.isArray(d.products)||!Array.isArray(d.history)) throw new Error('format');
+      if(!confirm('いまのデータを読み込んだ内容に置き換えますか？')) return;
+      profile=d.profile;products=d.products;history=d.history;
+      saveProfile();store.set('products',products);store.set('history',history);
+      renderSettings();toast('読み込みました');
+    }catch(err){ toast('読み込めませんでした。書き出したファイルを選んでください'); }
+  };
+  r.readAsText(file);
+});
+
+/* ============ 起動 ============ */
+renderHome();
+</script>
