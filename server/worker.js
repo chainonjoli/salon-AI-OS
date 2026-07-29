@@ -9,9 +9,13 @@
    3. 設定 → 変数 → シークレット ANTHROPIC_API_KEY を追加
    4. 発行されたURLを salon-config.js の ai.endpoint に設定
 
-   環境変数:
-     ANTHROPIC_API_KEY … 必須。Anthropic ConsoleのAPIキー
-     MODEL             … 任意。既定 claude-opus-5
+   環境変数（AIの鍵はどちらか一方でOK。両方あれば PROVIDER で選択）:
+     ANTHROPIC_API_KEY … Claude を使う場合の鍵（console.anthropic.com・有料）
+     GEMINI_API_KEY    … Gemini を使う場合の鍵（aistudio.google.com・無料枠あり）
+     PROVIDER          … 任意。'claude' か 'gemini'。未設定なら
+                         Claudeの鍵があればClaude、なければGemini
+     MODEL             … 任意。Claudeのモデル。既定 claude-opus-5
+     GEMINI_MODEL      … 任意。Geminiのモデル。既定 gemini-2.5-flash
      ALLOWED_ORIGIN    … 任意。サイトのURL（例 https://example.github.io）
                          未設定なら全オリジン許可（開発用）
    ========================================================= */
@@ -146,25 +150,84 @@ const EXTRACT_PROMPT = [
   '・JSON以外の文字（説明・コードフェンス）を出力しない。',
 ].join('\n');
 
-/* Claude API 呼び出し共通部 */
-async function callClaude(env, payload) {
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+/* =========================================================
+   AI呼び出し共通部（Claude / Gemini 両対応）
+   messages はAnthropic形式（content は文字列、または
+   text / document / image ブロックの配列）で渡し、
+   Gemini向けにはここで変換します。
+   ========================================================= */
+function providerOf(env) {
+  const p = (env.PROVIDER || '').toLowerCase();
+  if (p === 'claude' && env.ANTHROPIC_API_KEY) return 'claude';
+  if (p === 'gemini' && env.GEMINI_API_KEY) return 'gemini';
+  if (env.ANTHROPIC_API_KEY) return 'claude';
+  if (env.GEMINI_API_KEY) return 'gemini';
+  return null;
+}
+
+async function callAI(env, { system, messages, maxTokens, lowEffort }) {
+  const provider = providerOf(env);
+  if (!provider) throw new Error('no api key');
+
+  if (provider === 'claude') {
+    const payload = {
+      model: env.MODEL || 'claude-opus-5',
+      max_tokens: maxTokens,
+      messages,
+    };
+    /* ナレッジ＋方針は固定なのでプロンプトキャッシュ（変わるのは会話部分だけ） */
+    if (system) payload.system = [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }];
+    if (lowEffort) payload.output_config = { effort: 'low' };
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const detail = await res.text();
+      console.log('anthropic error', res.status, detail.slice(0, 500));
+      throw new Error('upstream ' + res.status);
+    }
+    const data = await res.json();
+    if (data.stop_reason === 'refusal') throw new Error('refusal');
+    const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
+    if (!text) throw new Error('empty');
+    return text;
+  }
+
+  /* ---- Gemini（Google AI Studio・無料枠あり） ---- */
+  const contents = messages.map(m => ({
+    role: m.role === 'assistant' ? 'model' : 'user',
+    parts: typeof m.content === 'string'
+      ? [{ text: m.content }]
+      : m.content.map(b => b.type === 'text'
+          ? { text: b.text }
+          : { inline_data: { mime_type: b.source.media_type, data: b.source.data } }),
+  }));
+  const body = { contents, generationConfig: { maxOutputTokens: maxTokens } };
+  if (system) body.system_instruction = { parts: [{ text: system }] };
+  const model = env.GEMINI_MODEL || 'gemini-2.5-flash';
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
     method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-api-key': env.ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({ model: env.MODEL || 'claude-opus-5', ...payload }),
+    headers: { 'content-type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
+    body: JSON.stringify(body),
   });
   if (!res.ok) {
     const detail = await res.text();
-    console.log('anthropic error', res.status, detail.slice(0, 500));
+    console.log('gemini error', res.status, detail.slice(0, 500));
     throw new Error('upstream ' + res.status);
   }
   const data = await res.json();
-  if (data.stop_reason === 'refusal') throw new Error('refusal');
-  return (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
+  if (data.promptFeedback && data.promptFeedback.blockReason) throw new Error('refusal');
+  const cand = (data.candidates || [])[0];
+  if (cand && cand.finishReason === 'SAFETY') throw new Error('refusal');
+  const text = ((cand && cand.content && cand.content.parts) || []).map(p => p.text || '').join('\n').trim();
+  if (!text) throw new Error('empty');
+  return text;
 }
 
 /* モデル出力からJSONを取り出す（コードフェンス等が混ざっても救う） */
@@ -178,7 +241,10 @@ function parseJsonLoose(text) {
 async function handleFactory(body, env, cors) {
   const action = body.action;
 
-  if (action === 'ping') return json({ ok: true }, 200, cors);
+  if (action === 'ping') {
+    const provider = providerOf(env);
+    return json({ ok: !!provider, provider }, 200, cors);
+  }
 
   if (action === 'generate') {
     const input = body.input || {};
@@ -201,12 +267,10 @@ async function handleFactory(body, env, cors) {
       '\n上記をもとに、8種類すべてのコンテンツをJSONで出力してください。',
     ].join('\n');
 
-    const text = await callClaude(env, {
-      max_tokens: 8192,
-      system: [
-        { type: 'text', text: buildFactoryGenerateSystem(profile), cache_control: { type: 'ephemeral' } },
-      ],
+    const text = await callAI(env, {
+      system: buildFactoryGenerateSystem(profile),
       messages: [{ role: 'user', content: userMsg }],
+      maxTokens: 8192,
     });
     const raw = parseJsonLoose(text);
     const contents = {};
@@ -227,9 +291,9 @@ async function handleFactory(body, env, cors) {
       ? { type: 'document', source: { type: 'base64', media_type: mediaType, data } }
       : { type: 'image', source: { type: 'base64', media_type: mediaType, data } };
 
-    const text = await callClaude(env, {
-      max_tokens: 2048,
+    const text = await callAI(env, {
       messages: [{ role: 'user', content: [block, { type: 'text', text: EXTRACT_PROMPT }] }],
+      maxTokens: 2048,
     });
     const raw = parseJsonLoose(text);
     const product = {};
@@ -281,47 +345,21 @@ export default {
       return json({ error: 'messages required' }, 400, cors);
     }
 
-    const apiRes = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: env.MODEL || 'claude-opus-5',
-        max_tokens: 4096,
-        /* 受付は短文・低遅延でよいので effort low。品質はナレッジ密度で担保 */
-        output_config: { effort: 'low' },
-        /* ナレッジ＋方針は固定なのでプロンプトキャッシュ（変わるのは会話部分だけ） */
-        system: [
-          { type: 'text', text: buildSystem(), cache_control: { type: 'ephemeral' } },
-        ],
-        messages,
-      }),
-    });
-
-    if (!apiRes.ok) {
-      const detail = await apiRes.text();
-      console.log('anthropic error', apiRes.status, detail.slice(0, 500));
-      return json({ error: 'upstream', status: apiRes.status }, 502, cors);
+    /* 受付は短文・低遅延でよい（Claude時は effort low）。品質はナレッジ密度で担保 */
+    let reply;
+    try {
+      reply = await callAI(env, { system: buildSystem(), messages, maxTokens: 4096, lowEffort: true });
+    } catch (e) {
+      /* 安全側の応答処理：refusal は定型文へ */
+      if (e && e.message === 'refusal') {
+        return json({
+          reply: '申し訳ありません、その内容にはお答えできません。サロンのメニューやご予約については、お気軽にお尋ねくださいね。',
+          reserve: false,
+        }, 200, cors);
+      }
+      console.log('reception error', String(e));
+      return json({ error: 'upstream' }, 502, cors);
     }
-
-    const data = await apiRes.json();
-
-    /* 安全側の応答処理：refusal は定型文へ */
-    if (data.stop_reason === 'refusal') {
-      return json({
-        reply: '申し訳ありません、その内容にはお答えできません。サロンのメニューやご予約については、お気軽にお尋ねくださいね。',
-        reserve: false,
-      }, 200, cors);
-    }
-
-    const reply = (data.content || [])
-      .filter(b => b.type === 'text')
-      .map(b => b.text)
-      .join('\n')
-      .trim();
 
     /* 予約意図があれば、フロント側で予約ボタンを付ける */
     const lastUser = messages[messages.length - 1].content;

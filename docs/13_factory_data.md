@@ -78,7 +78,15 @@
 
 ## AI API（Worker拡張）のインターフェース
 
-エンドポイントは既存 Worker を拡張（`dept` で分岐。既存の受付チャットは無変更）。
+エンドポイントは既存 Worker を拡張（`dept` で分岐）。
+AIは **Claude / Gemini の両対応**：Workerの環境変数に置いた鍵で自動判別し、
+両方ある場合は `PROVIDER`（`claude`|`gemini`）で選択（docs/06 参照）。
+
+### 接続確認：`POST { dept:"factory", action:"ping" }`
+
+```json
+→ 200 { "ok": true, "provider": "gemini" }   // ok:false は鍵未設定
+```
 
 ### 生成：`POST { dept:"factory", action:"generate", input:{...} }`
 

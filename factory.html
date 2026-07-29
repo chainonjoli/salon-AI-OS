@@ -835,7 +835,14 @@ async function testEndpoint(){
       body:JSON.stringify({dept:'factory',action:'ping'})
     });
     const data=await res.json().catch(()=>({}));
-    if(res.ok && data.ok){ st.textContent='✓ 接続できました。AIモードで動いています'; st.className='status-ok'; }
+    if(res.ok && data.ok){
+      const names={claude:'Claude', gemini:'Gemini'};
+      st.textContent='✓ 接続できました。'+(names[data.provider]||'AI')+'が文章を書きます';
+      st.className='status-ok';
+    }else if(res.ok && data.ok===false){
+      st.textContent='中継役にはつながりましたが、AIの鍵が未設定です（docs/06 の手順1）';
+      st.className='status-ng';
+    }
     else throw new Error('bad response');
   }catch(e){
     st.textContent='接続できませんでした。URLと設置（docs/06）をご確認ください';
