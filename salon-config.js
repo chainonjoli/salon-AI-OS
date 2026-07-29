@@ -34,6 +34,13 @@ window.SALON_CONFIG = {
     endpoint: ''
   },
 
+  /* ---------- 管理画面（admin.html） ----------
+     簡易PIN。※公開リポジトリではこの値も見えるため「覗き見防止」用です。
+     本格的なログイン認証はPhase 2でサーバー側に実装します。 */
+  admin: {
+    pin: '1203'
+  },
+
   /* ---------- 連絡先 ---------- */
   contact: {
     lineUrl: 'https://lin.ee/O1jhrwd',

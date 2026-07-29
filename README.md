@@ -7,9 +7,16 @@
 
 ## このディレクトリの構成
 
+公開ページ（GitHub Pages）:
+
+- **お客様ページ**: https://chainonjoli.github.io/salon-AI-OS/
+- **オーナー管理画面**: https://chainonjoli.github.io/salon-AI-OS/admin.html （簡易PIN付き）
+- **設定エディタ**: https://chainonjoli.github.io/salon-AI-OS/editor.html
+
 | ファイル | 内容 |
 |---|---|
-| [`index.html`](./index.html) | **プロトタイプのエンジン**（全サロン共通・サロン固有情報ゼロ） |
+| [`index.html`](./index.html) | **お客様ページ**（公開用。管理画面へのリンクなし） |
+| [`admin.html`](./admin.html) | **オーナー管理画面**（簡易PINゲート付き） |
 | [`salon-config.js`](./salon-config.js) | **サロン設定ファイル（ナレッジ）**。現在は chainonjoli（伊勢市）の実データ |
 | [`salon-config.template.js`](./salon-config.template.js) | 新規サロン用の空テンプレート（コメント付き） |
 | [`editor.html`](./editor.html) | **設定エディタ**。フォーム編集→ライブプレビュー→`salon-config.js`書き出し |
@@ -20,6 +27,11 @@
 | [`docs/03_database_design.md`](./docs/03_database_design.md) | データベース設計（ER図＋テーブル定義） |
 | [`docs/04_ai_knowledge.md`](./docs/04_ai_knowledge.md) | AIナレッジ構造（本システム最大の特徴） |
 | [`docs/05_roadmap.md`](./docs/05_roadmap.md) | Phase計画・今後追加すべき機能一覧 |
+
+> ⚠️ **管理画面のPINについて**：`salon-config.js` の `admin.pin` は公開リポジトリ上で誰でも読めます。
+> これは「通りすがりの覗き見を防ぐ」簡易ロックであり、本物の認証ではありません。
+> **実在のお客様情報を管理画面に入れないでください**（現在の表示はすべて架空のサンプル）。
+> 本格的なログイン認証はPhase 2でサーバー側に実装します。
 
 プロトタイプはブラウザで `index.html` を開くだけで動きます（サーバー不要）。
 スマホで開けばそのまま実機の操作感、PCで開けばスマホフレーム内で表示されます。

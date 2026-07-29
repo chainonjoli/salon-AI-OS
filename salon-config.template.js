@@ -34,6 +34,12 @@ window.SALON_CONFIG = {
     endpoint: ''
   },
 
+  /* ---------- 管理画面（admin.html） ----------
+     簡易PIN（覗き見防止用・4〜8桁推奨）。必ず変更してください。 */
+  admin: {
+    pin: '0000'
+  },
+
   /* ---------- 連絡先 ---------- */
   contact: {
     lineUrl: 'https://lin.ee/XXXXXXX',   // 公式LINEの友だち追加URL
