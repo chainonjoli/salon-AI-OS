@@ -1,0 +1,530 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Salon AI OS — 設定エディタ</title>
+<style>
+  :root{
+    --paper:#FCFBF9;--surface:#F5F2EE;--card:#FFFFFF;--line:#E8E3DC;
+    --ink:#37322E;--muted:#8B8378;
+    --accent:#A18072;--accent-deep:#82655A;--accent-soft:#F0E7E1;
+    --sage:#8FA08A;--sage-soft:#EDF1EA;--rose-soft:#F6E9E6;
+    --serif:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --sans:"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI","Noto Sans JP",-apple-system,sans-serif;
+    color-scheme:light;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:var(--surface);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.7;-webkit-font-smoothing:antialiased}
+  button{font-family:inherit;font-size:inherit;color:inherit;background:none;border:none;padding:0;cursor:pointer}
+  button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+
+  header{
+    position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:14px;
+    background:rgba(252,251,249,.95);backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line);padding:12px 20px;
+  }
+  header .mark{width:34px;height:34px;border-radius:10px;background:linear-gradient(145deg,var(--accent),var(--accent-deep));color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:15px;flex:none}
+  header .t b{font-size:15px;display:block;line-height:1.3}
+  header .t span{font-size:11px;color:var(--muted)}
+  header .actions{margin-left:auto;display:flex;gap:8px}
+  .btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:999px;font-weight:600;font-size:13px;background:var(--ink);color:#fff}
+  .btn:active{opacity:.75}
+  .btn.accent{background:var(--accent-deep)}
+  .btn.ghost{background:var(--card);color:var(--ink);border:1px solid var(--line)}
+
+  .layout{display:flex;gap:28px;max-width:1120px;margin:0 auto;padding:24px 20px 80px;align-items:flex-start}
+  .form-col{flex:1;min-width:0;max-width:600px}
+  .preview-col{width:406px;flex:none;position:sticky;top:74px;display:flex;flex-direction:column;gap:10px}
+  .preview-col .hint{font-size:11.5px;color:var(--muted);text-align:center}
+  #preview{
+    width:406px;height:740px;border:1px solid var(--line);border-radius:36px;background:var(--paper);
+    box-shadow:0 24px 60px rgba(55,50,46,.13);
+  }
+  @media(max-width:1023px){
+    .preview-col{display:none}
+    body.show-preview .preview-col{
+      display:flex;position:fixed;inset:0;z-index:90;background:rgba(55,50,46,.45);
+      align-items:center;justify-content:center;width:auto;padding:16px;
+    }
+    body.show-preview #preview{width:min(390px,94vw);height:min(740px,86vh)}
+    body.show-preview .preview-col .hint{display:none}
+  }
+  #preview-toggle{
+    display:none;position:fixed;right:16px;bottom:16px;z-index:80;
+    padding:13px 20px;border-radius:999px;background:var(--accent-deep);color:#fff;font-weight:600;
+    box-shadow:0 10px 26px rgba(55,50,46,.3);
+  }
+  @media(max-width:1023px){#preview-toggle{display:block}}
+  #preview-close{display:none}
+  body.show-preview #preview-close{display:block;position:fixed;top:14px;right:14px;z-index:95;background:var(--card);border-radius:999px;padding:8px 16px;font-size:13px;border:1px solid var(--line)}
+
+  .intro{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px 18px;margin-bottom:18px;font-size:13px;color:var(--muted)}
+  .intro b{color:var(--ink)}
+  #draft-note{display:none;background:var(--sage-soft);border:none;color:#4E5F49;border-radius:14px;padding:12px 16px;margin-bottom:14px;font-size:12.5px}
+  #draft-note button{text-decoration:underline;font-size:12.5px;color:inherit}
+
+  details.sec{background:var(--card);border:1px solid var(--line);border-radius:16px;margin-bottom:12px;overflow:hidden}
+  details.sec summary{
+    list-style:none;display:flex;align-items:center;gap:12px;padding:15px 18px;cursor:pointer;user-select:none;
+  }
+  details.sec summary::-webkit-details-marker{display:none}
+  details.sec summary .ic{font-size:18px;width:26px}
+  details.sec summary b{font-size:14px}
+  details.sec summary span.d{font-size:11.5px;color:var(--muted);display:block}
+  details.sec summary .chev{margin-left:auto;color:var(--muted);transition:transform .15s;font-size:12px}
+  details.sec[open] summary .chev{transform:rotate(90deg)}
+  .sec-body{padding:2px 18px 18px;border-top:1px solid var(--line)}
+
+  .field{margin:14px 0 0}
+  .field label{display:block;font-size:12px;font-weight:600;margin-bottom:5px}
+  .field label small{font-weight:400;color:var(--muted)}
+  .field input[type=text],.field input[type=url],.field textarea,.field select{
+    width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;
+    background:var(--paper);font-size:13.5px;line-height:1.6;font-family:inherit;color:inherit;
+  }
+  .field textarea{min-height:74px;resize:vertical}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 12px}
+
+  .palette{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+  .swatch{width:74px;border-radius:12px;border:2px solid transparent;padding:5px;background:var(--paper)}
+  .swatch.on{border-color:var(--ink)}
+  .swatch i{display:block;height:34px;border-radius:8px}
+  .swatch span{font-size:10px;color:var(--muted);display:block;text-align:center;margin-top:3px}
+
+  .row-list{display:flex;flex-direction:column;gap:10px;margin-top:12px}
+  .row-item{border:1px solid var(--line);border-radius:12px;padding:4px 14px 14px;background:var(--paper);position:relative}
+  .row-item .rm{position:absolute;top:8px;right:10px;font-size:11.5px;color:var(--muted);text-decoration:underline}
+  .add-row{margin-top:10px;font-size:12.5px;color:var(--accent-deep);font-weight:600;text-decoration:underline}
+  .note{font-size:11.5px;color:var(--muted);margin-top:10px}
+  .warn{font-size:11.5px;color:#96594E;background:var(--rose-soft);border-radius:10px;padding:9px 12px;margin-top:12px}
+
+  #toast{
+    position:fixed;left:50%;bottom:20px;transform:translateX(-50%) translateY(16px);
+    background:var(--ink);color:#fff;font-size:13px;padding:11px 20px;border-radius:999px;
+    opacity:0;pointer-events:none;transition:.25s;z-index:120;white-space:nowrap;max-width:92vw;
+  }
+  #toast.show{opacity:1;transform:translateX(-50%)}
+  dialog#export-dlg{border:none;border-radius:18px;padding:0;max-width:640px;width:92vw;box-shadow:0 30px 80px rgba(55,50,46,.3)}
+  dialog#export-dlg::backdrop{background:rgba(55,50,46,.4)}
+  .dlg-in{padding:22px}
+  .dlg-in h2{font-family:var(--serif);font-size:18px;font-weight:500;margin:0 0 8px}
+  .dlg-in p{font-size:12.5px;color:var(--muted);margin:0 0 12px}
+  .dlg-in textarea{width:100%;height:240px;border:1px solid var(--line);border-radius:12px;padding:12px;font-family:ui-monospace,monospace;font-size:11.5px;line-height:1.5}
+  .dlg-actions{display:flex;gap:10px;margin-top:12px;justify-content:flex-end}
+</style>
+
+<header>
+  <div class="mark">凛</div>
+  <div class="t"><b>Salon AI OS 設定エディタ</b><span>フォームに書くだけで、あなたのサロンのAIができます</span></div>
+  <div class="actions">
+    <button class="btn ghost" onclick="resetToBase()">初期値に戻す</button>
+    <button class="btn accent" onclick="openExport()">書き出し</button>
+  </div>
+</header>
+
+<div class="layout">
+  <div class="form-col">
+    <div class="intro">
+      左のフォームを編集すると、右のプレビューに<b>すぐ反映</b>されます。全部埋めなくても大丈夫— まずは<b>サロン名と連絡先</b>だけでも動きます。編集内容はこのブラウザに自動保存されます。
+    </div>
+    <div id="draft-note">📝 前回の編集内容を復元しました。<button onclick="discardDraft()">初期値に戻す</button></div>
+
+    <details class="sec" open>
+      <summary><span class="ic">🏠</span><span><b>基本情報</b><span class="d">サロン名・キャッチコピー</span></span><span class="chev">›</span></summary>
+      <div class="sec-body">
+        <div class="grid2">
+          <div class="field"><label>サロン名（ロゴ表記）</label><input type="text" id="f-name"></div>
+          <div class="field"><label>読み仮名</label><input type="text" id="f-reading"></div>
+        </div>
+        <div class="grid2">
+          <div class="field"><label>ロゴマークの文字 <small>1〜2文字</small></label><input type="text" id="f-mark" maxlength="2"></div>
+          <div class="field"><label>サロン名の上の英字 <small>例：PRIVATE BEAUTY SALON</small></label><input type="text" id="f-eyebrow"></div>
+        </div>
+        <div class="field"><label>キャッチコピー <small>サロン名の下に出ます</small></label><input type="text" id="f-tagline"></div>
+        <div class="field"><label>写真の上の一言</label><input type="text" id="f-heroline"></div>
+      </div>
+    </details>
+
+    <details class="sec">
+      <summary><span class="ic">🎨</span><span><b>テーマカラー</b><span class="d">サロンの雰囲気に合わせて</span></span><span class="chev">›</span></summary>
+      <div class="sec-body">
+        <div class="palette" id="palette"></div>
+        <p class="note">選ぶだけで全画面の配色が変わります。</p>
+      </div>
+    </details>
+
+    <details class="sec" open>
+      <summary><span class="ic">📞</span><span><b>連絡先</b><span class="d">公式LINE・電話</span></span><span class="chev">›</span></summary>
+      <div class="sec-body">
+        <div class="field"><label>公式LINEの友だち追加URL <small>lin.ee/…</small></label><input type="url" id="f-line"></div>
+        <div class="grid2">
+          <div class="field"><label>電話番号 <small>ハイフンありでOK</small></label><input type="text" id="f-tel"></div>
+          <div class="field"><label>電話の補足 <small>例：営業時間 9:00–20:00</small></label><input type="text" id="f-telnote"></div>
+        </div>
+      </div>
+    </details>
+
+    <details class="sec">
+      <summary><span class="ic">📢</span><span><b>ホームのお知らせ</b><span class="d">キャンペーン・LINE案内カード</span></span><span class="chev">›</span></summary>
+      <div class="sec-body">
+        <div class="row-list" id="cards-list"></div>
+        <button class="add-row" onclick="addCard()">＋ カードを追加</button>
+      </div>
+    </details>
+
+    <details class="sec">
+      <summary><span class="ic">✨</span><span><b>メニュー・料金</b><span class="d">施術メニューと税込価格</span></span><span class="chev">›</span></summary>
+      <div class="sec-body">
+        <div class="field"><label>メニューの見出し <small>例：Facial Esthetic</small></label><input type="text" id="f-menu-title"></div>
+        <div class="row-list" id="menu-list"></div>
+        <button class="add-row" onclick="addMenu()">＋ メニューを追加</button>
+        <div class="field"><label>メニュー下の補足見出し</label><input type="text" id="f-hl-title"></div>
+        <div class="field"><label>補足の本文</label><textarea id="f-hl-body"></textarea></div>
+      </div>
+    </details>
+
+    <details class="sec">
+      <summary><span class="ic">📍</span><span><b>アクセス・営業時間</b><span class="d">住所・定休日・キャンセル</span></span><span class="chev">›</span></summary>
+      <div class="sec-body">
+        <div class="row-list" id="access-list"></div>
+        <button class="add-row" onclick="addAccess()">＋ 項目を追加</button>
+        <div class="field"><label>キャンセル案内の見出し</label><input type="text" id="f-cancel-title"></div>
+        <div class="field"><label>キャンセル案内の本文</label><textarea id="f-cancel-body"></textarea></div>
+        <div class="field"><label>予約画面の注意書き</label><textarea id="f-reserve-disc"></textarea></div>
+      </div>
+    </details>
+
+    <details class="sec">
+      <summary><span class="ic">🛎</span><span><b>AI受付</b><span class="d">あいさつ・よくある質問</span></span><span class="chev">›</span></summary>
+      <div class="sec-body">
+        <div class="field"><label>最初のあいさつ</label><textarea id="f-greeting"></textarea></div>
+        <div class="row-list" id="faq-list"></div>
+        <button class="add-row" onclick="addFaq()">＋ 質問を追加</button>
+        <p class="note">「予約したい」ボタンは自動で付きます（LINE・予約画面へ誘導）。</p>
+      </div>
+    </details>
+
+    <details class="sec">
+      <summary><span class="ic">🌸</span><span><b>AIカウンセラー</b><span class="d">お悩みとおすすめの対応表</span></span><span class="chev">›</span></summary>
+      <div class="sec-body">
+        <div class="row-list" id="concern-list"></div>
+        <button class="add-row" onclick="addConcern()">＋ お悩みを追加</button>
+        <div class="field"><label>免責文 <small>結果画面に必ず表示されます</small></label><textarea id="f-disclaimer"></textarea></div>
+        <div class="warn">⚠️ 「治る」「消える」など医療的な断定表現は書かないでください。症状が続く場合の受診案内は免責文に含めましょう。</div>
+      </div>
+    </details>
+
+    <details class="sec">
+      <summary><span class="ic">📣</span><span><b>AI広報</b><span class="d">投稿ネタとサンプル文</span></span><span class="chev">›</span></summary>
+      <div class="sec-body">
+        <div class="row-list" id="topic-list"></div>
+        <button class="add-row" onclick="addTopic()">＋ ネタを追加</button>
+        <div class="field"><label>ハッシュタグ</label><textarea id="f-tags" style="min-height:56px"></textarea></div>
+      </div>
+    </details>
+
+    <details class="sec">
+      <summary><span class="ic">🎓</span><span><b>AI教育担当</b><span class="d">スタッフ研修クイズ</span></span><span class="chev">›</span></summary>
+      <div class="sec-body">
+        <div class="row-list" id="quiz-list"></div>
+        <button class="add-row" onclick="addQuiz()">＋ 問題を追加</button>
+      </div>
+    </details>
+  </div>
+
+  <div class="preview-col">
+    <iframe id="preview" title="プレビュー"></iframe>
+    <p class="hint">プレビューは実際に操作できます（入口で「お客様体験デモ」を選んでください）</p>
+  </div>
+</div>
+
+<button id="preview-toggle" onclick="document.body.classList.add('show-preview')">📱 プレビュー</button>
+<button id="preview-close" onclick="document.body.classList.remove('show-preview')">✕ 閉じる</button>
+
+<dialog id="export-dlg">
+  <div class="dlg-in">
+    <h2>設定ファイルの書き出し</h2>
+    <p>ダウンロードした <b>salon-config.js</b> を index.html と同じフォルダに置き換えれば、このサロンとして公開できます。</p>
+    <textarea id="export-text" readonly></textarea>
+    <div class="dlg-actions">
+      <button class="btn ghost" onclick="document.getElementById('export-dlg').close()">閉じる</button>
+      <button class="btn ghost" onclick="copyExport()">コピー</button>
+      <button class="btn accent" onclick="downloadExport()">salon-config.js をダウンロード</button>
+    </div>
+  </div>
+</dialog>
+
+<div id="toast" role="status"></div>
+
+<!-- ビルド時にエンジン本体（base64）が挿入されます。ローカルでは index.html を直接読み込みます -->
+<script id="engine-b64-slot"></script>
+<script src="salon-config.js"></script>
+<script>
+/* =========================================================
+   Salon AI OS — 設定エディタ
+   base（初期値）→ フォーム → collect() → プレビュー/書き出し
+   ========================================================= */
+const DRAFT_KEY='salonAiOsDraft';
+let base=JSON.parse(JSON.stringify(window.SALON_CONFIG));
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+
+/* ---------- カラープリセット ---------- */
+const PALETTES=[
+  {name:'モーブ',   accent:'#A18072',deep:'#82655A',soft:'#F0E7E1'},
+  {name:'ローズ',   accent:'#B58A8F',deep:'#96676D',soft:'#F4E8E9'},
+  {name:'セージ',   accent:'#8FA08A',deep:'#6E8069',soft:'#EBF0E8'},
+  {name:'ブルーグレー',accent:'#7F94A1',deep:'#5F7480',soft:'#E8EEF1'},
+  {name:'ゴールド', accent:'#B39A6B',deep:'#8F7A4F',soft:'#F3EDDF'},
+  {name:'ラベンダー',accent:'#9D8FA8',deep:'#7B6D87',soft:'#EFEAF2'}
+];
+let paletteIdx=0;
+function renderPalette(){
+  $('palette').innerHTML=PALETTES.map((p,i)=>
+    '<button class="swatch'+(i===paletteIdx?' on':'')+'" onclick="pickPalette('+i+')">'+
+    '<i style="background:linear-gradient(135deg,'+p.accent+','+p.deep+')"></i><span>'+p.name+'</span></button>').join('');
+}
+function pickPalette(i){paletteIdx=i;renderPalette();onChange();}
+
+/* ---------- 動的リスト（行テンプレート） ---------- */
+function rowShell(inner){return '<div class="row-item"><button class="rm" onclick="rmRow(this)">削除</button>'+inner+'</div>';}
+function rmRow(btn){btn.closest('.row-item').remove();onChange();}
+
+function cardRow(c={pill:'',tone:'gold',title:'',body:'',cta:'',action:''}){
+  return rowShell(
+    '<div class="grid3">'+
+    '<div class="field"><label>ラベル</label><input type="text" class="c-pill" value="'+esc(c.pill)+'"></div>'+
+    '<div class="field"><label>ラベル色</label><select class="c-tone">'+
+      ['gold','sage','rose','plain'].map(t=>'<option'+(c.tone===t?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'+
+    '<div class="field"><label>LINEボタン</label><select class="c-line"><option value="">なし</option><option value="line"'+(c.action==='line'?' selected':'')+'>付ける</option></select></div>'+
+    '</div>'+
+    '<div class="field"><label>タイトル</label><input type="text" class="c-title" value="'+esc(c.title)+'"></div>'+
+    '<div class="field"><label>本文</label><textarea class="c-body">'+esc(c.body)+'</textarea></div>');
+}
+function addCard(){$('cards-list').insertAdjacentHTML('beforeend',cardRow());onChange();}
+
+function menuRow(m={name:'',desc:'',price:''}){
+  return rowShell(
+    '<div class="grid2">'+
+    '<div class="field"><label>メニュー名</label><input type="text" class="m-name" value="'+esc(m.name)+'"></div>'+
+    '<div class="field"><label>価格 <small>例：¥8,800</small></label><input type="text" class="m-price" value="'+esc(m.price)+'"></div>'+
+    '</div>'+
+    '<div class="field"><label>内容・所要時間</label><input type="text" class="m-desc" value="'+esc(m.desc)+'"></div>');
+}
+function addMenu(){$('menu-list').insertAdjacentHTML('beforeend',menuRow());onChange();}
+
+function accessRow(r=['','']){
+  return rowShell(
+    '<div class="grid2">'+
+    '<div class="field"><label>項目名 <small>例：所在地</small></label><input type="text" class="a-label" value="'+esc(r[0])+'"></div>'+
+    '<div class="field"><label>内容 <small>改行できます</small></label><textarea class="a-value" style="min-height:46px">'+esc(String(r[1]).replace(/<br\s*\/?>/g,'\n').replace(/<[^>]*>/g,''))+'</textarea></div>'+
+    '</div>');
+}
+function addAccess(){$('access-list').insertAdjacentHTML('beforeend',accessRow());onChange();}
+
+function faqRow(q='',a=''){
+  return rowShell(
+    '<div class="field"><label>質問（ボタンの文字）</label><input type="text" class="q-q" value="'+esc(q)+'"></div>'+
+    '<div class="field"><label>答え</label><textarea class="q-a">'+esc(a)+'</textarea></div>');
+}
+function addFaq(){$('faq-list').insertAdjacentHTML('beforeend',faqRow());onChange();}
+
+function concernRow(k='',c={ic:'🌿',care:'',item:'',life:''}){
+  return rowShell(
+    '<div class="grid2">'+
+    '<div class="field"><label>お悩み名</label><input type="text" class="cn-key" value="'+esc(k)+'"></div>'+
+    '<div class="field"><label>絵文字</label><input type="text" class="cn-ic" value="'+esc(c.ic)+'" maxlength="2"></div>'+
+    '</div>'+
+    '<div class="field"><label>おすすめメニュー</label><input type="text" class="cn-care" value="'+esc(c.care)+'"></div>'+
+    '<div class="field"><label>おすすめ商品</label><input type="text" class="cn-item" value="'+esc(c.item)+'"></div>'+
+    '<div class="field"><label>生活習慣アドバイス</label><textarea class="cn-life" style="min-height:56px">'+esc(c.life)+'</textarea></div>');
+}
+function addConcern(){$('concern-list').insertAdjacentHTML('beforeend',concernRow());onChange();}
+
+function topicRow(k='',body=''){
+  return rowShell(
+    '<div class="field"><label>ネタの名前</label><input type="text" class="t-key" value="'+esc(k)+'"></div>'+
+    '<div class="field"><label>投稿サンプル文 <small>AIが文体の手本にします</small></label><textarea class="t-body" style="min-height:90px">'+esc(body)+'</textarea></div>');
+}
+function addTopic(){$('topic-list').insertAdjacentHTML('beforeend',topicRow());onChange();}
+
+function quizRow(q={q:'',opts:['','',''],ans:1,why:''}){
+  return rowShell(
+    '<div class="field"><label>問題文</label><input type="text" class="z-q" value="'+esc(q.q)+'"></div>'+
+    '<div class="grid3">'+
+    q.opts.map((o,i)=>'<div class="field"><label>選択肢'+(i+1)+'</label><input type="text" class="z-o" value="'+esc(o)+'"></div>').join('')+
+    '</div>'+
+    '<div class="grid2">'+
+    '<div class="field"><label>正解</label><select class="z-ans">'+[0,1,2].map(i=>'<option value="'+i+'"'+(q.ans===i?' selected':'')+'>選択肢'+(i+1)+'</option>').join('')+'</select></div>'+
+    '<div class="field"><label>解説（サロンの方針）</label><input type="text" class="z-why" value="'+esc(q.why)+'"></div>'+
+    '</div>');
+}
+function addQuiz(){$('quiz-list').insertAdjacentHTML('beforeend',quizRow());onChange();}
+
+/* ---------- フォームに流し込み ---------- */
+function fill(cfg){
+  $('f-name').value=cfg.brand.name; $('f-reading').value=cfg.brand.reading||'';
+  $('f-mark').value=cfg.brand.mark; $('f-eyebrow').value=cfg.brand.eyebrow;
+  $('f-tagline').value=cfg.brand.tagline; $('f-heroline').value=cfg.brand.heroLine;
+  paletteIdx=Math.max(0,PALETTES.findIndex(p=>p.accent.toLowerCase()===String(cfg.theme.accent).toLowerCase()));
+  renderPalette();
+  $('f-line').value=cfg.contact.lineUrl; $('f-tel').value=cfg.contact.telDisplay; $('f-telnote').value=cfg.contact.telNote;
+  $('cards-list').innerHTML=cfg.home.cards.map(c=>cardRow(c)).join('');
+  const sec=cfg.menu.sections[0]||{title:'',items:[]};
+  $('f-menu-title').value=sec.title;
+  $('menu-list').innerHTML=sec.items.map(m=>menuRow(m)).join('');
+  $('f-hl-title').value=cfg.menu.highlight?.title||''; $('f-hl-body').value=cfg.menu.highlight?.body||'';
+  $('access-list').innerHTML=cfg.access.rows.map(r=>accessRow(r)).join('');
+  $('f-cancel-title').value=cfg.access.cancel.title; $('f-cancel-body').value=cfg.access.cancel.body;
+  $('f-reserve-disc').value=cfg.reserve.disclaimer;
+  $('f-greeting').value=cfg.reception.greeting;
+  $('faq-list').innerHTML=Object.entries(cfg.reception.faq)
+    .filter(([k,v])=>typeof v==='string')
+    .map(([k,v])=>faqRow(k,v)).join('');
+  $('concern-list').innerHTML=Object.entries(cfg.counselor.concerns).map(([k,c])=>concernRow(k,c)).join('');
+  $('f-disclaimer').value=cfg.counselor.disclaimer;
+  $('topic-list').innerHTML=Object.entries(cfg.marketing.gen.body).map(([k,v])=>topicRow(k,v)).join('');
+  $('f-tags').value=cfg.marketing.gen.tags;
+  $('quiz-list').innerHTML=cfg.quiz.map(q=>quizRow(q)).join('');
+}
+
+/* ---------- フォームから設定を組み立て ---------- */
+function collect(){
+  const cfg=JSON.parse(JSON.stringify(base));
+  const v=id=>$(id).value.trim();
+  cfg.brand.name=v('f-name')||'サロン名';
+  cfg.brand.reading=v('f-reading'); cfg.brand.mark=v('f-mark')||cfg.brand.name.slice(0,1);
+  cfg.brand.eyebrow=v('f-eyebrow'); cfg.brand.tagline=v('f-tagline'); cfg.brand.heroLine=v('f-heroline');
+  cfg.brand.demoIntro='「'+cfg.brand.name+'」を題材に、実際に操作できます。';
+  const p=PALETTES[paletteIdx];
+  cfg.theme={accent:p.accent,accentDeep:p.deep,accentSoft:p.soft};
+  cfg.contact.lineUrl=v('f-line');
+  cfg.contact.telDisplay=v('f-tel'); cfg.contact.tel=v('f-tel').replace(/[^0-9+]/g,'');
+  cfg.contact.telNote=v('f-telnote');
+  cfg.home.cards=[...$('cards-list').querySelectorAll('.row-item')].map(r=>{
+    const c={pill:r.querySelector('.c-pill').value.trim()||'お知らせ',
+      tone:r.querySelector('.c-tone').value,
+      title:r.querySelector('.c-title').value.trim(),
+      body:r.querySelector('.c-body').value.trim()};
+    if(r.querySelector('.c-line').value==='line'){c.cta='LINEで友だち追加';c.action='line';}
+    return c;
+  }).filter(c=>c.title);
+  cfg.menu.sections=[{title:v('f-menu-title')||'Menu',
+    items:[...$('menu-list').querySelectorAll('.row-item')].map(r=>({
+      name:r.querySelector('.m-name').value.trim(),
+      desc:r.querySelector('.m-desc').value.trim(),
+      price:r.querySelector('.m-price').value.trim()
+    })).filter(m=>m.name)}];
+  cfg.menu.highlight={title:v('f-hl-title'),body:v('f-hl-body')};
+  if(!cfg.menu.highlight.title)cfg.menu.highlight=null;
+  cfg.access.rows=[...$('access-list').querySelectorAll('.row-item')].map(r=>[
+    r.querySelector('.a-label').value.trim(),
+    esc(r.querySelector('.a-value').value.trim()).replace(/\n/g,'<br>')
+  ]).filter(r=>r[0]);
+  cfg.access.cancel={title:v('f-cancel-title'),body:v('f-cancel-body')};
+  cfg.reserve.disclaimer=v('f-reserve-disc');
+  cfg.reception.greeting=$('f-greeting').value.trim();
+  const faq={};
+  [...$('faq-list').querySelectorAll('.row-item')].forEach(r=>{
+    const q=r.querySelector('.q-q').value.trim(), a=r.querySelector('.q-a').value.trim();
+    if(q&&a)faq[q]=a;
+  });
+  faq['予約したい']={text:'ありがとうございます。ご予約は次の方法から選べます。',reserve:true};
+  cfg.reception.faq=faq;
+  const concerns={};
+  [...$('concern-list').querySelectorAll('.row-item')].forEach(r=>{
+    const k=r.querySelector('.cn-key').value.trim();
+    if(!k)return;
+    concerns[k]={ic:r.querySelector('.cn-ic').value.trim()||'🌿',
+      care:r.querySelector('.cn-care').value.trim(),
+      item:r.querySelector('.cn-item').value.trim(),
+      life:r.querySelector('.cn-life').value.trim()};
+  });
+  if(Object.keys(concerns).length)cfg.counselor.concerns=concerns;
+  cfg.counselor.disclaimer=$('f-disclaimer').value.trim();
+  const topics={};
+  [...$('topic-list').querySelectorAll('.row-item')].forEach(r=>{
+    const k=r.querySelector('.t-key').value.trim();
+    if(k)topics[k]=r.querySelector('.t-body').value;
+  });
+  if(Object.keys(topics).length)cfg.marketing.gen.body=topics;
+  cfg.marketing.gen.tags=$('f-tags').value.trim();
+  const quiz=[...$('quiz-list').querySelectorAll('.row-item')].map(r=>({
+    q:r.querySelector('.z-q').value.trim(),
+    opts:[...r.querySelectorAll('.z-o')].map(o=>o.value.trim()),
+    ans:Number(r.querySelector('.z-ans').value),
+    why:r.querySelector('.z-why').value.trim()
+  })).filter(q=>q.q&&q.opts.every(o=>o));
+  if(quiz.length)cfg.quiz=quiz;
+  return cfg;
+}
+
+/* ---------- プレビュー ---------- */
+const iframe=$('preview');
+function pushPreview(){
+  try{iframe.contentWindow.postMessage({type:'salon-config',config:collect()},'*');}catch(e){}
+}
+let changeTimer;
+function onChange(){
+  clearTimeout(changeTimer);
+  changeTimer=setTimeout(()=>{
+    pushPreview();
+    try{localStorage.setItem(DRAFT_KEY,JSON.stringify(collect()));}catch(e){}
+  },400);
+}
+document.querySelector('.form-col').addEventListener('input',onChange);
+document.querySelector('.form-col').addEventListener('change',onChange);
+iframe.addEventListener('load',()=>setTimeout(pushPreview,60));
+
+/* ---------- 下書き ---------- */
+function discardDraft(){
+  localStorage.removeItem(DRAFT_KEY);
+  $('draft-note').style.display='none';
+  fill(base);onChange();
+  toast('初期値に戻しました');
+}
+function resetToBase(){discardDraft();}
+
+/* ---------- 書き出し ---------- */
+function exportText(){
+  return '/* Salon AI OS — サロン設定ファイル（設定エディタで作成） */\n'+
+         'window.SALON_CONFIG = '+JSON.stringify(collect(),null,2)+';\n';
+}
+function openExport(){
+  $('export-text').value=exportText();
+  $('export-dlg').showModal();
+}
+function copyExport(){
+  const t=$('export-text');t.select();
+  try{navigator.clipboard.writeText(t.value);}catch(e){document.execCommand('copy');}
+  toast('コピーしました');
+}
+function downloadExport(){
+  const blob=new Blob([exportText()],{type:'text/javascript'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);a.download='salon-config.js';
+  document.body.appendChild(a);a.click();a.remove();
+  toast('salon-config.js をダウンロードしました');
+}
+
+function toast(msg){
+  const t=$('toast');t.textContent=msg;t.classList.add('show');
+  clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),2400);
+}
+
+/* ---------- 起動 ---------- */
+(function init(){
+  let draft=null;
+  try{draft=JSON.parse(localStorage.getItem(DRAFT_KEY));}catch(e){}
+  if(draft&&draft.brand){$('draft-note').style.display='block';fill(draft);base=JSON.parse(JSON.stringify(window.SALON_CONFIG));}
+  else fill(base);
+  document.querySelector('header .mark').textContent=$('f-mark').value||'凛';
+  /* エンジンの読み込み：ビルド版は埋め込みsrcdoc、ローカルは index.html */
+  if(window.__ENGINE_B64){
+    const bytes=Uint8Array.from(atob(window.__ENGINE_B64),c=>c.charCodeAt(0));
+    iframe.srcdoc=new TextDecoder().decode(bytes);
+  }else{
+    iframe.src='index.html';
+  }
+})();
+</script>

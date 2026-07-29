@@ -1,0 +1,851 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Salon AI OS — プロトタイプ</title>
+<style>
+  /* ============ tokens ============ */
+  :root{
+    --paper:#FCFBF9;        /* 温白 */
+    --surface:#F5F2EE;      /* グレージュ面 */
+    --card:#FFFFFF;
+    --line:#E8E3DC;
+    --ink:#37322E;          /* 墨 */
+    --muted:#8B8378;
+    --accent:#A18072;       /* サロン設定で上書きされます */
+    --accent-deep:#82655A;
+    --accent-soft:#F0E7E1;
+    --sage:#8FA08A;
+    --sage-soft:#EDF1EA;
+    --gold:#C2A36B;
+    --gold-soft:#F5EEDF;
+    --rose:#C08A80;
+    --rose-soft:#F6E9E6;
+    --radius:18px;
+    --serif:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --sans:"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI","Noto Sans JP",-apple-system,sans-serif;
+    color-scheme: light; /* 白基調・くすみカラーの世界観に固定 */
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--surface);
+    color:var(--ink);
+    font-family:var(--sans);
+    font-size:15px;
+    line-height:1.75;
+    -webkit-font-smoothing:antialiased;
+  }
+  button{font-family:inherit;font-size:inherit;color:inherit;background:none;border:none;padding:0;cursor:pointer}
+  button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+  input,textarea,select{font-family:inherit;font-size:inherit;color:inherit}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+  /* ============ 共通部品 ============ */
+  .eyebrow{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--accent-deep);font-weight:600}
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:8px;
+    padding:13px 22px;border-radius:999px;font-weight:600;font-size:14px;
+    background:var(--ink);color:#fff;transition:opacity .15s;
+  }
+  .btn:active{opacity:.75}
+  .btn.accent{background:var(--accent-deep)}
+  .btn.ghost{background:var(--card);color:var(--ink);border:1px solid var(--line)}
+  .btn.wide{width:100%}
+  .chip{
+    display:inline-block;padding:8px 14px;border-radius:999px;font-size:13px;
+    background:var(--card);border:1px solid var(--line);color:var(--ink);
+  }
+  .chip:active{background:var(--accent-soft)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px 18px}
+  .pill{display:inline-block;font-size:11px;font-weight:600;padding:3px 10px;border-radius:999px;letter-spacing:.04em}
+  .pill.sage{background:var(--sage-soft);color:#5C7057}
+  .pill.gold{background:var(--gold-soft);color:#8A713F}
+  .pill.rose{background:var(--rose-soft);color:#96594E}
+  .pill.plain{background:var(--surface);color:var(--muted)}
+  .num{font-variant-numeric:tabular-nums}
+
+  /* ============ ハブ ============ */
+  #hub{max-width:680px;margin:0 auto;padding:56px 24px 80px;text-align:center}
+  #hub .mark{
+    width:64px;height:64px;border-radius:20px;margin:0 auto 20px;
+    background:linear-gradient(145deg,var(--accent),var(--accent-deep));
+    display:flex;align-items:center;justify-content:center;color:#fff;
+    font-family:var(--serif);font-size:26px;
+  }
+  #hub h1{font-family:var(--serif);font-weight:500;font-size:32px;letter-spacing:.06em;margin:0 0 6px;text-wrap:balance}
+  #hub .sub{color:var(--muted);max-width:34em;margin:0 auto 40px}
+  .hub-cards{display:grid;gap:16px;text-align:left}
+  @media(min-width:640px){.hub-cards{grid-template-columns:1fr 1fr}}
+  .hub-card{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:26px;display:block;width:100%;text-align:left;transition:transform .15s}
+  .hub-card:hover{transform:translateY(-2px)}
+  .hub-card .who{font-size:12px;letter-spacing:.18em;color:var(--accent-deep);font-weight:600;margin-bottom:8px}
+  .hub-card h2{font-family:var(--serif);font-weight:500;font-size:21px;margin:0 0 8px}
+  .hub-card p{margin:0;color:var(--muted);font-size:13.5px}
+  .hub-note{margin-top:36px;font-size:12.5px;color:var(--muted)}
+  .dept-row{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:28px 0 0}
+
+  /* ============ アプリ枠（スマホフレーム） ============ */
+  .app-wrap{display:none;min-height:100vh;padding:0}
+  .app-wrap.active{display:block}
+  @media(min-width:768px){
+    .app-wrap.active{display:flex;align-items:flex-start;justify-content:center;padding:40px 20px}
+    .phone{
+      width:400px;height:820px;border-radius:44px;border:1px solid var(--line);
+      background:var(--paper);overflow:hidden;position:relative;
+      box-shadow:0 30px 80px rgba(55,50,46,.14);
+    }
+  }
+  .phone{background:var(--paper);position:relative;min-height:100vh}
+  @media(min-width:768px){.phone{min-height:0}}
+  .screens{position:absolute;inset:0;overflow-y:auto;padding-bottom:96px}
+  @media(max-width:767px){.screens{position:static;min-height:100vh}}
+  .screen{display:none;padding:0 20px 24px;animation:fade .22s ease}
+  .screen.active{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  .topbar{
+    position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:10px;
+    padding:16px 0 12px;background:var(--paper);
+  }
+  .topbar .back{width:34px;height:34px;border-radius:50%;background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:15px}
+  .topbar .t{font-weight:600;font-size:15px}
+  .exit-demo{
+    position:fixed;top:14px;left:14px;z-index:60;font-size:12px;color:var(--muted);
+    background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 14px;
+  }
+  @media(min-width:768px){.exit-demo{position:absolute}}
+  @media(max-width:767px){.exit-demo{top:auto;bottom:calc(84px + env(safe-area-inset-bottom));left:12px;box-shadow:0 4px 14px rgba(55,50,46,.12)}}
+
+  /* 下部タブ */
+  .tabbar{
+    position:absolute;left:0;right:0;bottom:0;z-index:10;
+    display:flex;background:rgba(252,251,249,.94);backdrop-filter:blur(12px);
+    border-top:1px solid var(--line);padding:8px 6px calc(10px + env(safe-area-inset-bottom));
+  }
+  @media(max-width:767px){.tabbar{position:fixed}}
+  .tabbar button{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10.5px;color:var(--muted);padding:4px 0}
+  .tabbar button .ic{font-size:19px;line-height:1}
+  .tabbar button.on{color:var(--accent-deep);font-weight:600}
+
+  /* ============ お客様アプリ ============ */
+  .c-hero{padding:30px 0 8px}
+  .c-hero .eyebrow{display:block;margin-bottom:10px}
+  .c-hero h1{font-family:var(--serif);font-weight:500;font-size:30px;letter-spacing:.03em;margin:0 0 4px}
+  .c-hero h1 small{font-size:13px;color:var(--muted);letter-spacing:.12em;font-family:var(--sans)}
+  .c-hero .tag{color:var(--muted);font-size:13px;margin:0 0 20px}
+  .hero-visual{
+    height:150px;border-radius:22px;margin-bottom:20px;position:relative;overflow:hidden;
+    background:linear-gradient(135deg,#E9DDD4,#D9C6BB 55%,#C9B2A6);
+  }
+  .hero-visual::after{
+    content:"";position:absolute;width:180px;height:180px;border-radius:50%;
+    right:-40px;top:-60px;background:rgba(255,255,255,.35);
+  }
+  .hero-visual .in{position:absolute;left:18px;bottom:14px;color:#fff;font-family:var(--serif);font-size:14px;letter-spacing:.12em;text-shadow:0 1px 8px rgba(0,0,0,.15)}
+  .quick-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px}
+  .quick-grid .q{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px 14px;text-align:left}
+  .quick-grid .q .ic{font-size:22px;display:block;margin-bottom:8px}
+  .quick-grid .q b{font-size:14px;display:block}
+  .quick-grid .q span{font-size:11.5px;color:var(--muted)}
+  .ai-banner{
+    display:flex;align-items:center;gap:14px;border-radius:20px;padding:16px;
+    background:linear-gradient(120deg,var(--accent-soft),#F7F1EC);border:1px solid #E5D6CC;
+    width:100%;text-align:left;margin-bottom:14px;
+  }
+  .ai-banner .face{width:44px;height:44px;border-radius:50%;background:var(--accent-deep);color:#fff;display:flex;align-items:center;justify-content:center;font-size:20px;flex:none}
+  .ai-banner b{display:block;font-size:14px}
+  .ai-banner span{font-size:12px;color:var(--muted)}
+  .sec-h{font-family:var(--serif);font-size:18px;font-weight:500;letter-spacing:.06em;margin:26px 0 12px}
+
+  .menu-item{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:15px 0;border-bottom:1px solid var(--line)}
+  .menu-item:last-child{border-bottom:none}
+  .menu-item b{font-size:14.5px;font-weight:600;display:block}
+  .menu-item .d{font-size:12px;color:var(--muted)}
+  .menu-item .p{font-weight:600;white-space:nowrap}
+  .menu-item .p small{color:var(--muted);font-weight:400}
+
+  /* チャット */
+  .chat-log{display:flex;flex-direction:column;gap:12px;padding:8px 0 12px;min-height:200px}
+  .msg{max-width:82%;padding:11px 15px;border-radius:18px;font-size:14px;line-height:1.7;white-space:pre-line}
+  .msg.ai{background:var(--surface);border-bottom-left-radius:6px;align-self:flex-start}
+  .msg.me{background:var(--accent-deep);color:#fff;border-bottom-right-radius:6px;align-self:flex-end}
+  .msg.ai .cta{margin-top:10px;display:flex;flex-direction:column;gap:8px}
+  .typing{align-self:flex-start;color:var(--muted);font-size:12px;padding:4px 6px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;padding:6px 0 14px}
+  .chat-note{font-size:11px;color:var(--muted);text-align:center;padding:6px 0 0}
+  #chat-form{display:flex;gap:8px;padding:2px 0 10px}
+  #chat-form[hidden]{display:none}
+
+  /* カウンセラー */
+  .step-dots{display:flex;gap:6px;margin:6px 0 18px}
+  .step-dots i{width:22px;height:4px;border-radius:2px;background:var(--line)}
+  .step-dots i.on{background:var(--accent-deep)}
+  .opt-list{display:flex;flex-direction:column;gap:10px}
+  .opt-list button{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:15px 16px;text-align:left;font-size:14.5px;display:flex;align-items:center;gap:12px}
+  .opt-list button:active{border-color:var(--accent);background:var(--accent-soft)}
+  .opt-list .ic{font-size:19px}
+  .counsel-q{font-family:var(--serif);font-size:19px;font-weight:500;margin:4px 0 16px;text-wrap:balance}
+  .result-block{margin-bottom:14px}
+  .result-block .lbl{font-size:11px;letter-spacing:.16em;color:var(--accent-deep);font-weight:600;margin-bottom:6px}
+  .disclaimer{font-size:11.5px;color:var(--muted);background:var(--surface);border-radius:12px;padding:12px 14px;margin:16px 0}
+
+  /* ============ 管理アプリ ============ */
+  .a-head{padding:26px 0 4px}
+  .a-head .date{font-size:12px;color:var(--muted)}
+  .a-head h1{font-family:var(--serif);font-weight:500;font-size:23px;margin:2px 0 0;letter-spacing:.04em}
+  .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:18px 0}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px 16px}
+  .stat .k{font-size:11.5px;color:var(--muted)}
+  .stat .v{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+  .stat .v small{font-size:12px;font-weight:500;color:var(--muted)}
+  .stat .delta{font-size:11px;color:#5C7057;font-weight:600}
+  .feed{display:flex;flex-direction:column;gap:10px}
+  .feed .card{display:flex;gap:12px;align-items:flex-start;padding:14px 16px}
+  .feed .av{width:38px;height:38px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;flex:none;background:var(--accent-soft)}
+  .feed b{font-size:13.5px;display:block}
+  .feed p{margin:2px 0 0;font-size:12.5px;color:var(--muted)}
+  .feed time{font-size:10.5px;color:var(--muted);white-space:nowrap;margin-left:auto}
+
+  .dept-card{display:flex;align-items:center;gap:14px;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:10px}
+  .dept-card .ic{width:44px;height:44px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:21px;flex:none}
+  .dept-card b{display:block;font-size:14.5px}
+  .dept-card span{font-size:12px;color:var(--muted)}
+  .dept-card .arrow{margin-left:auto;color:var(--muted)}
+
+  /* ナレッジ */
+  .kn-cat{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:15px 4px;border-bottom:1px solid var(--line)}
+  .kn-cat .ic{font-size:19px;width:30px}
+  .kn-cat b{font-size:14px;display:block}
+  .kn-cat span{font-size:11.5px;color:var(--muted)}
+  .kn-cat .n{margin-left:auto;font-size:11px;color:var(--muted)}
+  .sync-note{display:flex;gap:10px;align-items:flex-start;background:var(--sage-soft);border-radius:14px;padding:12px 14px;font-size:12px;color:#4E5F49;margin:14px 0}
+  .field{margin-bottom:14px}
+  .field label{display:block;font-size:12.5px;font-weight:600;margin-bottom:6px}
+  .field input,.field textarea,.field select{
+    width:100%;border:1px solid var(--line);border-radius:12px;padding:12px 14px;
+    background:var(--card);font-size:14px;line-height:1.6;
+  }
+  .field textarea{min-height:88px;resize:vertical}
+  .field input:focus,.field textarea:focus,.field select:focus{outline:2px solid var(--accent);outline-offset:-1px}
+
+  /* マーケ */
+  .seg{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+  .seg button{padding:9px 15px;border-radius:999px;border:1px solid var(--line);background:var(--card);font-size:13px}
+  .seg button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .gen-box{background:var(--card);border:1px solid var(--line);border-radius:18px;overflow:hidden;margin-top:6px}
+  .gen-tabs{display:flex;border-bottom:1px solid var(--line)}
+  .gen-tabs button{flex:1;padding:11px 4px;font-size:12px;color:var(--muted);border-bottom:2px solid transparent}
+  .gen-tabs button.on{color:var(--ink);font-weight:600;border-bottom-color:var(--accent-deep)}
+  .gen-body{padding:16px;font-size:13.5px;white-space:pre-line;min-height:150px}
+  .gen-actions{display:flex;gap:10px;padding:0 16px 16px}
+
+  /* カルテ */
+  .cust{display:flex;align-items:center;gap:13px;width:100%;text-align:left;padding:14px 4px;border-bottom:1px solid var(--line)}
+  .cust .av{width:42px;height:42px;border-radius:50%;background:var(--accent-soft);color:var(--accent-deep);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:14px;flex:none}
+  .cust b{font-size:14px;display:block}
+  .cust span{font-size:11.5px;color:var(--muted)}
+  .cust .due{margin-left:auto;text-align:right}
+  .tl{border-left:2px solid var(--line);margin-left:8px;padding-left:18px;display:flex;flex-direction:column;gap:14px}
+  .tl .ev{position:relative}
+  .tl .ev::before{content:"";position:absolute;left:-23.5px;top:6px;width:9px;height:9px;border-radius:50%;background:var(--accent);border:2px solid var(--paper)}
+  .tl .ev b{font-size:13.5px;display:block}
+  .tl .ev p{margin:1px 0 0;font-size:12px;color:var(--muted)}
+  .tl .ev time{font-size:11px;color:var(--muted)}
+
+  /* 教育 */
+  .quiz-opt{display:block;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 15px;font-size:14px;margin-bottom:9px}
+  .quiz-opt.good{border-color:var(--sage);background:var(--sage-soft)}
+  .quiz-opt.bad{border-color:var(--rose);background:var(--rose-soft)}
+  .bar-row{display:flex;align-items:center;gap:10px;margin-bottom:9px;font-size:12px}
+  .bar-row .lbl{width:64px;color:var(--muted);flex:none}
+  .bar-row .bar{flex:1;height:10px;border-radius:5px;background:var(--surface);overflow:hidden}
+  .bar-row .bar i{display:block;height:100%;border-radius:5px;background:linear-gradient(90deg,var(--accent),var(--accent-deep))}
+  .bar-row .v{width:38px;text-align:right;font-weight:600}
+
+  /* トースト */
+  #toast{
+    position:fixed;left:50%;bottom:104px;transform:translateX(-50%) translateY(16px);
+    background:var(--ink);color:#fff;font-size:13px;padding:11px 20px;border-radius:999px;
+    opacity:0;pointer-events:none;transition:.25s;z-index:99;white-space:nowrap;max-width:92vw;
+  }
+  #toast.show{opacity:1;transform:translateX(-50%)}
+</style>
+
+<!-- ================= デモ入口ハブ ================= -->
+<div id="hub">
+  <div class="mark" id="hub-mark"></div>
+  <p class="eyebrow">SALON AI OS — CLICKABLE PROTOTYPE</p>
+  <h1>AIスタッフが、24時間働くサロンへ。</h1>
+  <p class="sub">受付・カウンセラー・広報・秘書・教育担当。5つの「AI部署」がひとつのナレッジで動く、個人サロンのためのOSです。<span id="hub-intro"></span></p>
+  <div class="hub-cards">
+    <button class="hub-card" onclick="enter('customer')">
+      <div class="who">FOR GUESTS</div>
+      <h2>お客様体験デモ</h2>
+      <p>AI受付との会話、AI美容カウンセリング、予約・LINE導線までの流れを、お客様のスマホ画面で体験します。</p>
+    </button>
+    <button class="hub-card" onclick="enter('admin')">
+      <div class="who">FOR OWNERS</div>
+      <h2>オーナー管理画面デモ</h2>
+      <p>5つのAI部署への指示、ナレッジ更新、SNS投稿生成、顧客カルテ、教育・分析。専門知識ゼロで触れる管理画面です。</p>
+    </button>
+  </div>
+  <div class="dept-row">
+    <span class="chip">🛎 AI受付</span><span class="chip">🌸 AIカウンセラー</span><span class="chip">📣 AI広報</span><span class="chip">🗂 AI秘書</span><span class="chip">🎓 AI教育担当</span>
+  </div>
+  <p class="hub-note">これは Phase 1 のプロトタイプです。応答はすべてサンプルデータで動作します。<br>サロン情報は <code>salon-config.js</code> の1ファイルで差し替えられます。</p>
+</div>
+
+<!-- ================= お客様アプリ ================= -->
+<div class="app-wrap" id="app-customer">
+  <button class="exit-demo" onclick="exitDemo()">← デモ選択へ</button>
+  <div class="phone">
+    <div class="screens" id="c-screens">
+
+      <!-- ホーム -->
+      <section class="screen active" id="c-home">
+        <div class="c-hero">
+          <span class="eyebrow" id="c-eyebrow"></span>
+          <h1 id="c-name"></h1>
+          <p class="tag" id="c-tag"></p>
+        </div>
+        <div class="hero-visual"><span class="in" id="c-heroline"></span></div>
+        <button class="ai-banner" onclick="goC('c-counsel');resetCounsel()">
+          <span class="face">🌸</span>
+          <span><b>AI美容カウンセラーに相談する</b><span>3つの質問で、あなたに合うケアをご提案（無料・24時間）</span></span>
+        </button>
+        <div class="quick-grid">
+          <button class="q" onclick="goC('c-chat')"><span class="ic">🛎</span><b>AI受付に質問</b><span>営業時間・料金・駐車場など</span></button>
+          <button class="q" onclick="goC('c-reserve')"><span class="ic">📅</span><b>予約する</b><span>LINE・Web・お電話</span></button>
+          <button class="q" onclick="goC('c-menu')"><span class="ic">✨</span><b>メニュー</b><span>料金のご案内</span></button>
+          <button class="q" onclick="goC('c-access')"><span class="ic">📍</span><b>アクセス</b><span>営業時間・場所</span></button>
+        </div>
+        <h2 class="sec-h">ただいまのご案内</h2>
+        <div id="home-cards"></div>
+      </section>
+
+      <!-- メニュー -->
+      <section class="screen" id="c-menu">
+        <div class="topbar"><button class="back" onclick="goC('c-home')">←</button><span class="t">メニュー・料金</span></div>
+        <div id="menu-body"></div>
+        <button class="btn wide" onclick="goC('c-reserve')">このメニューで予約に進む</button>
+      </section>
+
+      <!-- AI受付チャット -->
+      <section class="screen" id="c-chat">
+        <div class="topbar"><button class="back" onclick="goC('c-home')">←</button>
+          <span class="t">AI受付　<span class="pill sage">24時間対応</span></span></div>
+        <div class="chat-log" id="chat-log"></div>
+        <div class="chips" id="chat-chips"></div>
+        <form id="chat-form" hidden>
+          <input id="chat-input" placeholder="メッセージを入力…" autocomplete="off"
+            style="flex:1;min-width:0;border:1px solid var(--line);border-radius:999px;padding:11px 16px;background:var(--card);font-size:14px">
+          <button class="btn accent" type="submit" style="flex:none">送信</button>
+        </form>
+        <p class="chat-note" id="chat-note">AI受付はサロンの登録情報（ナレッジ）に基づいてお答えします。</p>
+      </section>
+
+      <!-- AIカウンセラー -->
+      <section class="screen" id="c-counsel">
+        <div class="topbar"><button class="back" onclick="goC('c-home')">←</button><span class="t">AI美容カウンセラー</span></div>
+        <div id="counsel-body"></div>
+      </section>
+
+      <!-- アクセス -->
+      <section class="screen" id="c-access">
+        <div class="topbar"><button class="back" onclick="goC('c-home')">←</button><span class="t">アクセス・営業時間</span></div>
+        <div class="hero-visual" style="height:120px;background:linear-gradient(135deg,#DDD6CC,#CFC5B8)"><span class="in" id="access-map-label"></span></div>
+        <div class="card" style="margin-bottom:12px" id="access-rows"></div>
+        <div class="card" id="access-cancel"></div>
+      </section>
+
+      <!-- 予約導線 -->
+      <section class="screen" id="c-reserve">
+        <div class="topbar"><button class="back" onclick="goC('c-home')">←</button><span class="t">ご予約</span></div>
+        <p style="font-size:13.5px;color:var(--muted);margin:8px 2px 16px" id="reserve-intro"></p>
+        <div class="opt-list">
+          <button onclick="goLine()"><span class="ic">💬</span><span><b>LINEで予約する</b>　<span class="pill sage">おすすめ</span><br><span style="font-size:12px;color:var(--muted)" id="reserve-line-note"></span></span></button>
+          <button onclick="toast('デモ：ホームページの予約フォームへ')"><span class="ic">🗓</span><span><b>Webフォームで予約する</b><br><span style="font-size:12px;color:var(--muted)" id="reserve-web-note"></span></span></button>
+          <button onclick="goTel()"><span class="ic">📞</span><span><b>電話で予約する</b>　<span class="num" style="font-size:13px" id="reserve-tel"></span><br><span style="font-size:12px;color:var(--muted)" id="reserve-tel-note"></span></span></button>
+        </div>
+        <div class="disclaimer" id="reserve-disclaimer"></div>
+      </section>
+    </div>
+
+    <nav class="tabbar" id="c-tab">
+      <button data-s="c-home" class="on"><span class="ic">🏠</span>ホーム</button>
+      <button data-s="c-menu"><span class="ic">✨</span>メニュー</button>
+      <button data-s="c-counsel"><span class="ic">🌸</span>AI相談</button>
+      <button data-s="c-chat"><span class="ic">🛎</span>受付</button>
+      <button data-s="c-reserve"><span class="ic">📅</span>予約</button>
+    </nav>
+  </div>
+</div>
+
+<!-- ================= オーナー管理アプリ ================= -->
+<div class="app-wrap" id="app-admin">
+  <button class="exit-demo" onclick="exitDemo()">← デモ選択へ</button>
+  <div class="phone">
+    <div class="screens" id="a-screens">
+
+      <!-- ダッシュボード -->
+      <section class="screen active" id="a-home">
+        <div class="a-head">
+          <div class="date">7月20日（月）</div>
+          <h1>おはようございます、オーナー</h1>
+        </div>
+        <div class="stat-grid">
+          <div class="stat"><div class="k">昨夜のAI対応</div><div class="v num">14<small> 件</small></div><div class="delta">うち営業時間外 9件</div></div>
+          <div class="stat"><div class="k">カウンセリング完了</div><div class="v num">5<small> 名</small></div><div class="delta">→ 予約導線へ 3名</div></div>
+          <div class="stat"><div class="k">LINE登録（今週）</div><div class="v num">12<small> 人</small></div><div class="delta">先週比 +4</div></div>
+          <div class="stat"><div class="k">予約導線クリック</div><div class="v num">21<small> 回</small></div><div class="delta">LINE経由が7割</div></div>
+        </div>
+
+        <h2 class="sec-h" style="margin-top:8px">AIスタッフからの報告</h2>
+        <div class="feed">
+          <div class="card"><span class="av">🌸</span><span><b>カウンセラー：乾燥の相談が増えています</b><p>今週の相談の6割が「乾燥・つっぱり」。保湿メニューの発信をおすすめします。</p></span><time>8:02</time></div>
+          <div class="card"><span class="av" style="background:var(--gold-soft)">📣</span><span><b>広報：今週のInstagram投稿案が3件できました</b><p>「乾燥ケア特集」の投稿案を用意しました。確認して投稿してください。</p></span><time>7:30</time></div>
+          <div class="card"><span class="av" style="background:var(--sage-soft)">🗂</span><span><b>秘書：フォローのご提案が2名います</b><p>佐藤様が前回来店から6週間経過。フォローLINEの下書きがあります。</p></span><time>7:00</time></div>
+        </div>
+
+        <h2 class="sec-h">AI部署</h2>
+        <button class="dept-card" onclick="goA('a-mkt')"><span class="ic" style="background:var(--gold-soft)">📣</span><span><b>AI広報（マーケティング）</b><span>SNS投稿の作成・カレンダー・分析</span></span><span class="arrow">›</span></button>
+        <button class="dept-card" onclick="goA('a-crm')"><span class="ic" style="background:var(--sage-soft)">🗂</span><span><b>AI秘書（顧客管理）</b><span>カルテ・来店履歴・フォロー提案</span></span><span class="arrow">›</span></button>
+        <button class="dept-card" onclick="goA('a-edu')"><span class="ic" style="background:var(--rose-soft)">🎓</span><span><b>AI教育担当</b><span>マニュアル・研修・理解度チェック</span></span><span class="arrow">›</span></button>
+        <button class="dept-card" onclick="goA('a-analytics')"><span class="ic" style="background:var(--accent-soft)">📊</span><span><b>分析レポート</b><span>相談傾向・導線・投稿の成果</span></span><span class="arrow">›</span></button>
+        <p style="font-size:11.5px;color:var(--muted);margin:10px 2px 0">🛎 AI受付・🌸 AIカウンセラーはお客様画面で24時間稼働中。応対内容は「ナレッジ」から変えられます。</p>
+      </section>
+
+      <!-- ナレッジ -->
+      <section class="screen" id="a-kn">
+        <div class="a-head"><div class="date">AIナレッジ</div><h1>サロンの知識を、一か所で</h1></div>
+        <div class="sync-note"><span>🔄</span><span>ここを更新すると、<b>受付・カウンセラー・広報・秘書・教育</b>の5つのAIすべてに即時反映されます。</span></div>
+        <div class="card" style="padding:4px 16px">
+          <button class="kn-cat" onclick="toast('デモ：基本情報の編集画面へ')"><span class="ic">🏠</span><span><b>基本情報</b><span>サロン名・コンセプト・オーナー紹介・営業時間</span></span><span class="n num">8項目</span></button>
+          <button class="kn-cat" onclick="toast('デモ：文体・話し方の編集画面へ')"><span class="ic">🗣</span><span><b>文体・話し方</b><span>語尾・敬語レベル・よく使う言葉・NGワード</span></span><span class="n num">12項目</span></button>
+          <button class="kn-cat" onclick="toast('デモ：メニュー・価格の編集画面へ')"><span class="ic">✨</span><span><b>メニュー・価格</b><span>施術メニュー・所要時間・税込価格</span></span><span class="n num">6件</span></button>
+          <button class="kn-cat" onclick="toast('デモ：商品情報の編集画面へ')"><span class="ic">🧴</span><span><b>商品情報</b><span>取扱商品・特徴・価格・おすすめ対象</span></span><span class="n num">9件</span></button>
+          <button class="kn-cat" onclick="goA('a-kn-faq')"><span class="ic">❓</span><span><b>FAQ</b><span>よくある質問と回答</span></span><span class="n num">24件</span></button>
+          <button class="kn-cat" onclick="toast('デモ：ルールの編集画面へ')"><span class="ic">📏</span><span><b>接客・予約ルール</b><span>キャンセルポリシー・LINE/SNS配信ルール</span></span><span class="n num">7項目</span></button>
+          <button class="kn-cat" onclick="toast('デモ：キャンペーンの編集画面へ')"><span class="ic">🎁</span><span><b>キャンペーン</b><span>期間限定の案内（終了日で自動停止）</span></span><span class="n num">1件 実施中</span></button>
+        </div>
+      </section>
+
+      <!-- FAQ追加（ナレッジ編集の代表例） -->
+      <section class="screen" id="a-kn-faq">
+        <div class="topbar"><button class="back" onclick="goA('a-kn')">←</button><span class="t">FAQを追加</span></div>
+        <p style="font-size:12.5px;color:var(--muted);margin:4px 2px 16px">お客様からよく聞かれることを登録すると、AI受付がそのまま答えられるようになります。</p>
+        <div class="field"><label>質問</label><input id="faq-q" value="子ども連れでも大丈夫ですか？"></div>
+        <div class="field"><label>答え（サロンの言葉で書いてください。AIが文体を整えます）</label><textarea id="faq-a">プライベートサロンのため、お子様連れはご遠慮いただいています。ベビーカーのままご入店いただける日もあるので、まずはLINEでご相談ください。</textarea></div>
+        <button class="btn accent wide" onclick="saveFaq()">保存して、5つのAIに反映する</button>
+        <div class="disclaimer" style="margin-top:14px">保存すると即時に反映され、次の会話からAI受付がこの内容で回答します。</div>
+      </section>
+
+      <!-- マーケ -->
+      <section class="screen" id="a-mkt">
+        <div class="topbar"><button class="back" onclick="goA('a-home')">←</button><span class="t">AI広報　投稿をつくる</span></div>
+        <p style="font-size:12.5px;font-weight:600;margin:6px 2px 8px">1. どこに投稿しますか？</p>
+        <div class="seg" id="mkt-media"></div>
+        <p style="font-size:12.5px;font-weight:600;margin:2px 2px 8px">2. ネタを選んでください</p>
+        <div class="seg" id="mkt-topic"></div>
+        <button class="btn wide" onclick="genPost()">この内容で投稿をつくる</button>
+        <div class="gen-box" id="gen-box" hidden>
+          <div class="gen-tabs" id="gen-tabs">
+            <button data-t="body" class="on">本文</button>
+            <button data-t="tags">ハッシュタグ</button>
+            <button data-t="reel">リール台本</button>
+            <button data-t="img">画像プロンプト</button>
+          </div>
+          <div class="gen-body" id="gen-body"></div>
+          <div class="gen-actions">
+            <button class="btn ghost" style="flex:1" onclick="toast('コピーしました')">コピー</button>
+            <button class="btn accent" style="flex:1" onclick="toast('投稿カレンダーに予約しました（木曜 19:00）')">投稿予約</button>
+          </div>
+        </div>
+        <p style="font-size:11.5px;color:var(--muted);margin:14px 2px 0">文体・NGワード・キャンペーン情報はナレッジから自動で反映されます。</p>
+      </section>
+
+      <!-- カルテ一覧 -->
+      <section class="screen" id="a-crm">
+        <div class="topbar"><button class="back" onclick="goA('a-home')">←</button><span class="t">AI秘書　顧客カルテ</span></div>
+        <div class="sync-note" style="background:var(--gold-soft);color:#6E5A33"><span>💡</span><span>来店周期から<b>フォローのタイミング</b>をAIが提案します。</span></div>
+        <div class="card" style="padding:4px 16px">
+          <button class="cust" onclick="goA('a-crm-detail')"><span class="av">佐</span><span><b>佐藤 美咲 様</b><span>乾燥肌・くすみケア / 来店8回</span></span><span class="due"><span class="pill rose">来店目安を超過</span><br><span style="font-size:10.5px;color:var(--muted)">前回から6週間</span></span></button>
+          <button class="cust" onclick="toast('デモ：カルテ詳細（サンプルは佐藤様のみ）')"><span class="av">田</span><span><b>田中 恵 様</b><span>敏感肌・鎮静ケア / 来店3回</span></span><span class="due"><span class="pill gold">来週フォロー</span><br><span style="font-size:10.5px;color:var(--muted)">前回から3週間</span></span></button>
+          <button class="cust" onclick="toast('デモ：カルテ詳細（サンプルは佐藤様のみ）')"><span class="av">鈴</span><span><b>鈴木 直子 様</b><span>たるみケア / 来店12回</span></span><span class="due"><span class="pill sage">予約済み 7/24</span><br><span style="font-size:10.5px;color:var(--muted)">周期どおり</span></span></button>
+        </div>
+      </section>
+
+      <!-- カルテ詳細 -->
+      <section class="screen" id="a-crm-detail">
+        <div class="topbar"><button class="back" onclick="goA('a-crm')">←</button><span class="t">佐藤 美咲 様のカルテ</span></div>
+        <div class="card" style="margin-bottom:12px">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+            <span class="pill plain">乾燥肌</span><span class="pill plain">くすみ</span><span class="pill rose">香料アレルギーあり</span>
+          </div>
+          <p style="font-size:12.5px;color:var(--muted);margin:0">来店8回 / 平均周期 4週 / 累計 ¥92,400<br>ホームケア：ビタミンC美容液（5月購入・そろそろ使い切り）</p>
+        </div>
+        <div class="card" style="margin-bottom:12px;background:var(--sage-soft);border-color:#DCE5D8">
+          <b style="font-size:13.5px">🗂 AI秘書の提案</b>
+          <p style="font-size:12.5px;margin:6px 0 10px">前回来店から6週間経過。美容液の使い切り時期でもあるため、フォローLINEを提案します。</p>
+          <div class="card" style="font-size:13px;background:var(--card)">佐藤様、こんにちは☺️ その後お肌の調子はいかがですか？梅雨明けは紫外線が強くなる時期なので、美白ケアのご案内をお送りしますね。美容液の残りが少なくなっていましたら、次回ご来店時にご用意しておきます。</div>
+          <div style="display:flex;gap:10px;margin-top:12px">
+            <button class="btn ghost" style="flex:1" onclick="toast('下書きを編集（デモ）')">編集</button>
+            <button class="btn accent" style="flex:1" onclick="toast('LINEで送信しました（デモ）')">この内容で送る</button>
+          </div>
+        </div>
+        <h2 class="sec-h" style="margin-top:4px">来店・施術履歴</h2>
+        <div class="tl">
+          <div class="ev"><time>6月8日</time><b>フェイシャルエステ（くすみケア重点）90分</b><p>頬のくすみ改善傾向。摩擦レス洗顔を継続中。写真2枚保存。</p></div>
+          <div class="ev"><time>5月11日</time><b>フェイシャルエステ + 物販</b><p>ビタミンC美容液を購入。次回はくすみケア重点を提案。</p></div>
+          <div class="ev"><time>4月13日</time><b>初回ご来店（ビジター）→ 会員登録</b><p>乾燥とくすみが主訴。香料アレルギーのため製品はA社ラインで統一。</p></div>
+        </div>
+      </section>
+
+      <!-- 教育 -->
+      <section class="screen" id="a-edu">
+        <div class="topbar"><button class="back" onclick="goA('a-home')">←</button><span class="t">AI教育担当</span></div>
+        <div class="a-head" style="padding-top:6px"><h1 style="font-size:19px">新人スタッフ研修</h1></div>
+        <div class="card" style="padding:4px 16px;margin-bottom:16px">
+          <button class="kn-cat" onclick="toast('デモ：接客マニュアルを開く')"><span class="ic">🤝</span><span><b>接客マニュアル</b><span>お出迎え〜お見送りの流れ・言葉づかい</span></span><span class="n"><span class="pill sage">学習済み</span></span></button>
+          <button class="kn-cat" onclick="toast('デモ：施術マニュアルを開く')"><span class="ic">✨</span><span><b>施術マニュアル</b><span>フェイシャル手順・禁忌事項</span></span><span class="n"><span class="pill gold">学習中</span></span></button>
+          <button class="kn-cat" onclick="toast('デモ：商品マニュアルを開く')"><span class="ic">🧴</span><span><b>商品マニュアル</b><span>取扱商品の特徴とおすすめの仕方</span></span><span class="n"><span class="pill plain">未着手</span></span></button>
+          <button class="kn-cat" onclick="toast('デモ：動画教材（Phase 2で追加予定）')"><span class="ic">🎬</span><span><b>動画教材</b><span>手技動画・ロールプレイ例</span></span><span class="n num">4本</span></button>
+        </div>
+        <h2 class="sec-h" style="margin-top:0">理解度チェック（接客編）</h2>
+        <div id="quiz-body"></div>
+      </section>
+
+      <!-- 分析 -->
+      <section class="screen" id="a-analytics">
+        <div class="topbar"><button class="back" onclick="goA('a-home')">←</button><span class="t">分析レポート（今週）</span></div>
+        <h2 class="sec-h" style="margin-top:8px">お客様の相談テーマ</h2>
+        <div class="card">
+          <div class="bar-row"><span class="lbl">乾燥</span><span class="bar"><i style="width:62%"></i></span><span class="v num">62%</span></div>
+          <div class="bar-row"><span class="lbl">シミ・くすみ</span><span class="bar"><i style="width:48%"></i></span><span class="v num">48%</span></div>
+          <div class="bar-row"><span class="lbl">たるみ</span><span class="bar"><i style="width:30%"></i></span><span class="v num">30%</span></div>
+          <div class="bar-row"><span class="lbl">ニキビ</span><span class="bar"><i style="width:22%"></i></span><span class="v num">22%</span></div>
+          <p style="font-size:12px;color:var(--muted);margin:8px 0 0">🌸 提案：来週の発信テーマは「梅雨明けの乾燥×紫外線ケア」がおすすめです。</p>
+        </div>
+        <h2 class="sec-h">導線の成果</h2>
+        <div class="stat-grid" style="margin-top:0">
+          <div class="stat"><div class="k">受付 → 予約導線</div><div class="v num">34<small> %</small></div><div class="delta">先週比 +6pt</div></div>
+          <div class="stat"><div class="k">相談 → LINE登録</div><div class="v num">58<small> %</small></div><div class="delta">先週比 +3pt</div></div>
+        </div>
+        <h2 class="sec-h">人気投稿（Instagram）</h2>
+        <div class="card">
+          <div class="menu-item"><span><b>「日焼け止め、塗り直せてますか？」</b><span class="d">リール / 7月14日</span></span><span class="p num">保存 41</span></div>
+          <div class="menu-item"><span><b>お客様の声：くすみが気にならなくなった</b><span class="d">フィード / 7月10日</span></span><span class="p num">保存 28</span></div>
+          <p style="font-size:12px;color:var(--muted);margin:8px 0 0">📣 提案：「豆知識リール」の保存率が高いため、週1本の定期化をおすすめします。</p>
+        </div>
+      </section>
+    </div>
+
+    <nav class="tabbar" id="a-tab">
+      <button data-s="a-home" class="on"><span class="ic">🏠</span>ホーム</button>
+      <button data-s="a-kn"><span class="ic">📚</span>ナレッジ</button>
+      <button data-s="a-mkt"><span class="ic">📣</span>広報</button>
+      <button data-s="a-crm"><span class="ic">🗂</span>カルテ</button>
+      <button data-s="a-edu"><span class="ic">🎓</span>教育</button>
+    </nav>
+  </div>
+</div>
+
+<div id="toast" role="status"></div>
+
+<script src="salon-config.js"></script>
+<script>
+/* =========================================================
+   Salon AI OS — エンジン（全サロン共通）
+   サロン固有の情報はすべて salon-config.js（SALON_CONFIG）から
+   読み込みます。このファイルにサロン名や価格を書かないこと。
+   ========================================================= */
+let C = window.SALON_CONFIG;
+
+/* ============ 設定の流し込み ============ */
+function hydrate(){
+  const r = document.documentElement.style;
+  r.setProperty('--accent', C.theme.accent);
+  r.setProperty('--accent-deep', C.theme.accentDeep);
+  r.setProperty('--accent-soft', C.theme.accentSoft);
+  document.title = 'Salon AI OS — プロトタイプ｜' + C.brand.name;
+
+  const $ = id => document.getElementById(id);
+  $('hub-mark').textContent = C.brand.mark;
+  $('hub-intro').textContent = C.brand.demoIntro;
+  $('c-eyebrow').textContent = C.brand.eyebrow;
+  $('c-name').innerHTML = C.brand.name + (C.brand.reading ? ' <small>' + C.brand.reading + '</small>' : '');
+  $('c-tag').textContent = C.brand.tagline;
+  $('c-heroline').textContent = C.brand.heroLine;
+
+  $('home-cards').innerHTML = C.home.cards.map(cd =>
+    '<div class="card" style="margin-bottom:12px"><span class="pill ' + (cd.tone||'plain') + '">' + cd.pill + '</span>' +
+    '<p style="margin:8px 0 4px;font-weight:600;font-size:14.5px">' + cd.title + '</p>' +
+    '<p style="margin:0' + (cd.cta ? ' 0 12px' : '') + ';font-size:12.5px;color:var(--muted)">' + cd.body + '</p>' +
+    (cd.cta ? '<button class="btn accent wide" onclick="' + (cd.action==='line'?'goLine()':'goC(\'c-reserve\')') + '">' + cd.cta + '</button>' : '') +
+    '</div>').join('');
+
+  $('menu-body').innerHTML =
+    C.menu.sections.map(sec =>
+      '<h2 class="sec-h" style="margin-top:8px">' + sec.title + '</h2><div class="card">' +
+      sec.items.map(m =>
+        '<div class="menu-item"><span><b>' + m.name + '</b><span class="d">' + m.desc + '</span></span><span class="p num">' + m.price + '</span></div>'
+      ).join('') + '</div>'
+    ).join('') +
+    (C.menu.highlight ? '<div class="card" style="margin-top:12px"><b style="font-size:14px">' + C.menu.highlight.title + '</b><p style="font-size:12.5px;color:var(--muted);margin:6px 0 0">' + C.menu.highlight.body + '</p></div>' : '') +
+    '<p style="font-size:11.5px;color:var(--muted);margin:12px 2px">' + C.menu.note + '</p>';
+
+  $('access-map-label').textContent = C.access.mapLabel;
+  $('access-rows').innerHTML = C.access.rows.map(row =>
+    '<div class="menu-item"><span><b>' + row[0] + '</b></span><span style="font-size:13px;text-align:right" class="num">' + row[1] + '</span></div>').join('');
+  $('access-cancel').innerHTML = '<b style="font-size:14px">' + C.access.cancel.title + '</b><p style="font-size:12.5px;color:var(--muted);margin:6px 0 0">' + C.access.cancel.body + '</p>';
+
+  $('reserve-intro').textContent = C.reserve.intro;
+  $('reserve-line-note').textContent = C.reserve.lineNote;
+  $('reserve-web-note').textContent = C.reserve.webNote;
+  $('reserve-tel').textContent = C.contact.telDisplay;
+  $('reserve-tel-note').textContent = C.contact.telNote;
+  $('reserve-disclaimer').textContent = C.reserve.disclaimer;
+}
+hydrate();
+
+/* ============ 連絡先アクション ============ */
+function goLine(){toast('LINEを開いています…');window.open(C.contact.lineUrl,'_blank');}
+function goTel(){toast('発信します：'+C.contact.telDisplay);location.href='tel:'+C.contact.tel;}
+
+/* ============ ルーティング ============ */
+function enter(which){
+  document.getElementById('hub').style.display='none';
+  document.getElementById('app-'+which).classList.add('active');
+  window.scrollTo(0,0);
+  if(which==='customer') initChat();
+}
+function exitDemo(){
+  document.querySelectorAll('.app-wrap').forEach(a=>a.classList.remove('active'));
+  document.getElementById('hub').style.display='block';
+  window.scrollTo(0,0);
+}
+function switchScreen(root,tab,id){
+  document.querySelectorAll('#'+root+' .screen').forEach(s=>s.classList.toggle('active',s.id===id));
+  document.querySelectorAll('#'+tab+' button').forEach(b=>b.classList.toggle('on',b.dataset.s===id));
+  document.querySelector('#'+root).scrollTo(0,0);
+  window.scrollTo(0,0);
+}
+function goC(id){ switchScreen('c-screens','c-tab',id); if(id==='c-chat') initChat(); if(id==='c-counsel'&&!counselStarted) resetCounsel(); }
+function goA(id){ switchScreen('a-screens','a-tab',id); }
+document.getElementById('c-tab').addEventListener('click',e=>{const b=e.target.closest('button');if(b)goC(b.dataset.s);});
+document.getElementById('a-tab').addEventListener('click',e=>{const b=e.target.closest('button');if(b)goA(b.dataset.s);});
+
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),2400);
+}
+
+/* ============ AI受付チャット ============ */
+let chatInited=false, chatHistory=[];
+const aiMode=()=>!!(C.ai && C.ai.endpoint);
+function initChat(){
+  if(chatInited) return; chatInited=true;
+  chatHistory=[];
+  document.getElementById('chat-form').hidden=!aiMode();
+  document.getElementById('chat-note').textContent=aiMode()
+    ? 'AIがサロンの登録情報（ナレッジ）に基づいてお答えします。個人情報の入力はお控えください。'
+    : 'AI受付はサロンの登録情報（ナレッジ）に基づいてお答えします。';
+  aiSay(C.reception.greeting);
+  renderChips();
+}
+function renderChips(){
+  const c=document.getElementById('chat-chips');
+  c.innerHTML='';
+  Object.keys(C.reception.faq).forEach(k=>{
+    const b=document.createElement('button');b.className='chip';b.textContent=k;
+    b.onclick=()=>ask(k);c.appendChild(b);
+  });
+}
+function addUserMsg(text){
+  const log=document.getElementById('chat-log');
+  const me=document.createElement('div');me.className='msg me';me.textContent=text;log.appendChild(me);
+  const ty=document.createElement('div');ty.className='typing';ty.textContent='AI受付が入力中…';log.appendChild(ty);
+  scrollChat();
+  return ty;
+}
+function ask(k){
+  /* 「予約したい」は常に予約導線（AI接続時も確実に誘導するため） */
+  const a=C.reception.faq[k];
+  if(aiMode() && typeof a==='string'){ sendToAI(k); return; }
+  const ty=addUserMsg(k);
+  setTimeout(()=>{
+    ty.remove();
+    if(typeof a==='string') aiSay(a);
+    else aiSay(a.text, a.reserve);
+  },700);
+}
+async function sendToAI(text){
+  const ty=addUserMsg(text);
+  chatHistory.push({role:'user',content:text});
+  try{
+    const res=await fetch(C.ai.endpoint,{
+      method:'POST',
+      headers:{'content-type':'application/json'},
+      body:JSON.stringify({dept:'reception',messages:chatHistory.slice(-12)})
+    });
+    if(!res.ok) throw new Error('http '+res.status);
+    const data=await res.json();
+    ty.remove();
+    const reply=data.reply||'すみません、うまくお答えできませんでした。';
+    chatHistory.push({role:'assistant',content:reply});
+    aiSay(reply, data.reserve===true);
+  }catch(e){
+    ty.remove();
+    chatHistory.pop();
+    aiSay('申し訳ありません、ただいま接続が不安定です。お急ぎの場合は公式LINEまたはお電話（'+C.contact.telDisplay+'）でお問い合わせください。', true);
+  }
+}
+document.getElementById('chat-form').addEventListener('submit',e=>{
+  e.preventDefault();
+  const inp=document.getElementById('chat-input');
+  const text=inp.value.trim();
+  if(!text) return;
+  inp.value='';
+  sendToAI(text);
+});
+function aiSay(text,withReserve){
+  const log=document.getElementById('chat-log');
+  const m=document.createElement('div');m.className='msg ai';m.textContent=text;
+  if(withReserve){
+    const cta=document.createElement('div');cta.className='cta';
+    cta.innerHTML='<button class="btn accent" onclick="goLine()">LINEで予約する</button>'+
+                  '<button class="btn ghost" onclick="goC(\'c-reserve\')">ほかの予約方法を見る</button>';
+    m.appendChild(cta);
+  }
+  log.appendChild(m);scrollChat();
+}
+function scrollChat(){
+  const sc=document.getElementById('c-screens');
+  sc.scrollTo({top:sc.scrollHeight,behavior:'smooth'});
+  window.scrollTo(0,document.body.scrollHeight);
+}
+
+/* ============ AIカウンセラー ============ */
+let counselStarted=false, counselAns={};
+function resetCounsel(){
+  counselStarted=true;counselAns={};
+  counselStep(1);
+}
+function counselStep(n){
+  const body=document.getElementById('counsel-body');
+  const CO=C.counselor;
+  const dots=(k)=>'<div class="step-dots">'+[1,2,3].map(i=>'<i class="'+(i<=k?'on':'')+'"></i>').join('')+'</div>';
+  if(n===1){
+    body.innerHTML=dots(1)+'<p class="counsel-q">'+CO.q1+'</p><div class="opt-list">'+
+      Object.keys(CO.concerns).map(k=>'<button onclick="counselPick(1,\''+k+'\')"><span class="ic">'+CO.concerns[k].ic+'</span>'+k+'</button>').join('')+'</div>';
+  }else if(n===2){
+    body.innerHTML=dots(2)+'<p class="counsel-q">'+CO.q2.q+'</p><div class="opt-list">'+
+      CO.q2.opts.map(k=>'<button onclick="counselPick(2,\''+k+'\')"><span class="ic">🕰</span>'+k+'</button>').join('')+'</div>';
+  }else if(n===3){
+    body.innerHTML=dots(3)+'<p class="counsel-q">'+CO.q3.q+'</p><div class="opt-list">'+
+      CO.q3.opts.map(k=>'<button onclick="counselPick(3,\''+k+'\')"><span class="ic">🧴</span>'+k+'</button>').join('')+'</div>';
+  }else{
+    const c=CO.concerns[counselAns[1]];
+    body.innerHTML=
+      '<div class="step-dots"><i class="on"></i><i class="on"></i><i class="on"></i></div>'+
+      '<p class="counsel-q">'+counselAns[1]+'が気になる、'+counselAns[3]+'のあなたへ</p>'+
+      '<div class="card result-block"><div class="lbl">RECOMMENDED CARE</div><b>'+c.care+'</b><p style="font-size:12.5px;color:var(--muted);margin:4px 0 0">「'+counselAns[2]+'」とのことなので、まずは1回体験し、肌の反応を見ながら通う間隔をご提案します。</p></div>'+
+      '<div class="card result-block"><div class="lbl">HOME CARE</div><b>'+c.item+'</b><p style="font-size:12.5px;color:var(--muted);margin:4px 0 0">サロンでの取り扱いがあります。使い方はご来店時に丁寧にお伝えします。</p></div>'+
+      '<div class="card result-block"><div class="lbl">LIFESTYLE</div><p style="font-size:13px;margin:0">'+c.life+'</p></div>'+
+      '<div class="disclaimer">'+CO.disclaimer+'</div>'+
+      '<button class="btn accent wide" style="margin-bottom:10px" onclick="goLine()">この結果をLINEで受け取る</button>'+
+      '<button class="btn ghost wide" onclick="goC(\'c-reserve\')">このメニューで予約する</button>'+
+      '<p style="font-size:11px;color:var(--muted);text-align:center;margin-top:12px"><button style="text-decoration:underline" onclick="resetCounsel()">最初からやり直す</button></p>';
+  }
+  document.getElementById('c-screens').scrollTo(0,0);window.scrollTo(0,0);
+}
+function counselPick(step,val){counselAns[step]=val;counselStep(step+1);}
+
+/* ============ FAQ保存 ============ */
+function saveFaq(){
+  toast('保存しました。5つのAIスタッフに反映されました 🔄');
+  setTimeout(()=>goA('a-kn'),900);
+}
+
+/* ============ AI広報 ============ */
+let TOPICS, mktMedia, mktTopic;
+function initMarketing(){
+  TOPICS=Object.keys(C.marketing.gen.body);
+  mktMedia=C.marketing.media[0]; mktTopic=TOPICS[0];
+  refreshSegs();
+}
+function renderSeg(id,items,cur,setter){
+  const el=document.getElementById(id);el.innerHTML='';
+  items.forEach(v=>{
+    const b=document.createElement('button');b.textContent=v;if(v===cur)b.classList.add('on');
+    b.onclick=()=>{setter(v);};el.appendChild(b);
+  });
+}
+function refreshSegs(){
+  renderSeg('mkt-media',C.marketing.media,mktMedia,v=>{mktMedia=v;refreshSegs();});
+  renderSeg('mkt-topic',TOPICS,mktTopic,v=>{mktTopic=v;refreshSegs();});
+}
+initMarketing();
+let genTab='body';
+function genPost(){
+  document.getElementById('gen-box').hidden=false;
+  genTab='body';renderGen();
+  toast(mktMedia+'向けの投稿案を作成しました');
+}
+function renderGen(){
+  document.querySelectorAll('#gen-tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===genTab));
+  const body=document.getElementById('gen-body');
+  const G=C.marketing.gen;
+  body.textContent = genTab==='body' ? G.body[mktTopic] : G[genTab];
+}
+document.getElementById('gen-tabs').addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;genTab=b.dataset.t;renderGen();
+});
+
+/* ============ 理解度チェック ============ */
+let quizIdx=0,quizScore=0;
+function renderQuiz(){
+  const QUIZ=C.quiz;
+  const el=document.getElementById('quiz-body');
+  if(quizIdx>=QUIZ.length){
+    el.innerHTML='<div class="card" style="text-align:center"><p style="font-size:13px;color:var(--muted);margin:0 0 4px">結果</p>'+
+      '<p style="font-family:var(--serif);font-size:26px;margin:0 0 8px" class="num">'+quizScore+' / '+QUIZ.length+'</p>'+
+      '<p style="font-size:12.5px;color:var(--muted);margin:0 0 14px">'+(quizScore===QUIZ.length?'すばらしい！接客編は合格です。':'惜しい！間違えた項目のマニュアルを復習しましょう。')+'</p>'+
+      '<button class="btn ghost wide" onclick="quizIdx=0;quizScore=0;renderQuiz()">もう一度挑戦する</button></div>';
+    return;
+  }
+  const q=QUIZ[quizIdx];
+  el.innerHTML='<div class="card"><p style="font-size:11.5px;color:var(--muted);margin:0 0 6px" class="num">Q'+(quizIdx+1)+' / '+QUIZ.length+'</p>'+
+    '<p style="font-weight:600;font-size:14.5px;margin:0 0 14px">'+q.q+'</p>'+
+    q.opts.map((o,i)=>'<button class="quiz-opt" onclick="quizAnswer(this,'+i+')">'+o+'</button>').join('')+
+    '<p id="quiz-why" style="font-size:12px;color:var(--muted);margin:6px 0 0" hidden></p></div>';
+}
+function quizAnswer(btn,i){
+  const q=C.quiz[quizIdx];
+  const opts=btn.parentElement.querySelectorAll('.quiz-opt');
+  opts.forEach(o=>o.disabled=true);
+  opts[q.ans].classList.add('good');
+  if(i===q.ans){quizScore++;}else{btn.classList.add('bad');}
+  const why=document.getElementById('quiz-why');
+  why.hidden=false;why.textContent='💡 '+q.why;
+  setTimeout(()=>{quizIdx++;renderQuiz();},1800);
+}
+renderQuiz();
+
+/* ============ 設定エディタからのライブ更新 ============ */
+window.addEventListener('message',e=>{
+  const d=e.data;
+  if(!d || d.type!=='salon-config' || !d.config) return;
+  C=d.config;
+  hydrate();
+  chatInited=false;chatHistory=[];
+  document.getElementById('chat-log').innerHTML='';
+  document.getElementById('chat-chips').innerHTML='';
+  counselStarted=false;
+  document.getElementById('counsel-body').innerHTML='';
+  document.getElementById('gen-box').hidden=true;
+  initMarketing();
+  quizIdx=0;quizScore=0;renderQuiz();
+  if(document.getElementById('app-customer').classList.contains('active')) initChat();
+});
+</script>
