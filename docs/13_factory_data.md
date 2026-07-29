@@ -18,9 +18,15 @@
   "industry": "エステ",
   "intro": "伊勢市の隠れ家プライベートエステ",
   "tone": "soft",              // soft | formal | genki
-  "aiEndpoint": ""             // WorkerのURL。空ならデモモード
+  "geminiKey": "",             // かんたん接続：Gemini APIキー（ブラウザから直接呼ぶ）
+  "aiEndpoint": ""             // 本格接続：WorkerのURL。両方空ならデモモード
 }
 ```
+
+接続の優先順位：`geminiKey`（かんたん接続）→ `aiEndpoint`（Worker経由）→ デモモード。
+かんたん接続では、Worker用と同じプロンプト（factory.html 内に同期コピー）で
+ブラウザから Gemini API を直接呼ぶ。鍵は localStorage のみに保存され、
+オーナー専用アプリである factory.html に限って許可する方式（公開ページでは使わない）。
 
 ### `factory.products` — 商品（配列）
 
