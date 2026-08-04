@@ -18,6 +18,8 @@
      GEMINI_MODEL      … 任意。Geminiのモデル。既定 gemini-2.5-flash
      ALLOWED_ORIGIN    … 任意。サイトのURL（例 https://example.github.io）
                          未設定なら全オリジン許可（開発用）
+     RATE_PER_MIN      … 任意。1分あたりの同一IP上限（既定 8）
+     RATE_PER_DAY      … 任意。1日あたりの全体上限（既定 500）
    ========================================================= */
 
 /* ---------- サロンナレッジ ----------
@@ -305,6 +307,32 @@ async function handleFactory(body, env, cors) {
   return json({ error: 'unknown action' }, 400, cors);
 }
 
+/* ---------- 使いすぎ防止（簡易レート制限） ----------
+   同一IP: 1分あたり RATE_PER_MIN 回（既定8）
+   全体  : 1日あたり RATE_PER_DAY 回（既定500）
+   ※メモリ上のカウンタのため厳密ではありませんが、
+     暴走・いたずらによる高額請求の第一防壁になります。
+     併せてAnthropic Console側で月額上限も必ず設定してください。 */
+const ipHits = new Map();   // ip -> [timestamps]
+let dayCount = 0;
+let dayStamp = '';
+
+function rateLimited(ip, env) {
+  const now = Date.now();
+  const today = new Date().toISOString().slice(0, 10);
+  if (dayStamp !== today) { dayStamp = today; dayCount = 0; }
+  if (dayCount >= Number(env.RATE_PER_DAY || 500)) return '本日の受付上限に達しました';
+
+  const windowMs = 60_000;
+  const hits = (ipHits.get(ip) || []).filter(t => now - t < windowMs);
+  if (hits.length >= Number(env.RATE_PER_MIN || 8)) return '少し時間をおいてお試しください';
+  hits.push(now);
+  ipHits.set(ip, hits);
+  if (ipHits.size > 5000) ipHits.clear();  // メモリ保護
+  dayCount++;
+  return null;
+}
+
 /* ---------- Worker本体 ---------- */
 export default {
   async fetch(request, env) {
@@ -317,6 +345,24 @@ export default {
     if (request.method === 'OPTIONS') return new Response(null, { headers: cors });
     if (request.method !== 'POST') {
       return json({ error: 'POST only' }, 405, cors);
+    }
+
+    /* オリジン検証（ALLOWED_ORIGIN設定時のみ厳格化） */
+    if (env.ALLOWED_ORIGIN) {
+      const reqOrigin = request.headers.get('Origin') || '';
+      if (reqOrigin !== env.ALLOWED_ORIGIN) {
+        return json({ error: 'origin not allowed' }, 403, cors);
+      }
+    }
+
+    /* レート制限 */
+    const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+    const limited = rateLimited(ip, env);
+    if (limited) {
+      return json({
+        reply: '申し訳ありません、' + limited + '。お急ぎの場合は公式LINEまたはお電話でお問い合わせください。',
+        reserve: true,
+      }, 200, cors);
     }
 
     let body;
