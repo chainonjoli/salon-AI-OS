@@ -129,6 +129,14 @@
     </div>
     <div id="draft-note">📝 前回の編集内容を復元しました。<button onclick="discardDraft()">初期値に戻す</button></div>
 
+    <div class="intro" style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+      <b style="color:var(--ink);font-size:13px">新しいサロンを作る：</b>
+      <select id="preset-select" style="flex:1;min-width:140px;border:1px solid var(--line);border-radius:10px;padding:9px 12px;background:var(--paper);font-size:13px">
+        <option value="">業種を選んでください…</option>
+      </select>
+      <button class="btn ghost" style="padding:9px 16px" onclick="loadPreset()">この業種で始める</button>
+    </div>
+
     <details class="sec" open>
       <summary><span class="ic">🏠</span><span><b>基本情報</b><span class="d">サロン名・キャッチコピー</span></span><span class="chev">›</span></summary>
       <div class="sec-body">
@@ -258,6 +266,7 @@
 
 <!-- ビルド時にエンジン本体（base64）が挿入されます。ローカルでは index.html を直接読み込みます -->
 <script id="engine-b64-slot"></script>
+<script src="presets.js"></script>
 <script src="salon-config.js"></script>
 <script>
 /* =========================================================
@@ -510,6 +519,26 @@ function downloadExport(){
 function toast(msg){
   const t=$('toast');t.textContent=msg;t.classList.add('show');
   clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),2400);
+}
+
+/* ---------- 業種プリセット ---------- */
+(function initPresets(){
+  const sel = $('preset-select');
+  if (!window.SALON_PRESETS) { sel.parentElement.style.display = 'none'; return; }
+  Object.keys(window.SALON_PRESETS).forEach(k => {
+    const o = document.createElement('option'); o.value = k; o.textContent = k; sel.appendChild(o);
+  });
+})();
+function loadPreset(){
+  const name = $('preset-select').value;
+  if (!name) { toast('業種を選んでください'); return; }
+  if (!confirm('「' + name + '」のひな形を読み込みます。\n現在の編集内容は置き換わります。よろしいですか？')) return;
+  const preset = JSON.parse(JSON.stringify(window.SALON_PRESETS[name]));
+  base = preset;
+  fill(preset);
+  onChange();
+  toast(name + 'のひな形を読み込みました。サロン名・料金・連絡先を書き換えてください');
+  window.scrollTo(0, 0);
 }
 
 /* ---------- 起動 ---------- */
