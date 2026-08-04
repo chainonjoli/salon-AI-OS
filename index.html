@@ -317,15 +317,31 @@ function goLine(){toast('LINEを開いています…');window.open(C.contact.li
 function goTel(){toast('発信します：'+C.contact.telDisplay);location.href='tel:'+C.contact.tel;}
 
 /* ============ 画面切替 ============ */
-function goC(id){
+function goC(id,keepHash){
   document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('active',s.id===id));
   document.querySelectorAll('#c-tab button').forEach(b=>b.classList.toggle('on',b.dataset.s===id));
   document.getElementById('c-screens').scrollTo(0,0);
   window.scrollTo(0,0);
   if(id==='c-chat') initChat();
   if(id==='c-counsel'&&!counselStarted) resetCounsel();
+  /* URLを画面に合わせる（共有・ブックマーク用。履歴は増やさない） */
+  if(!keepHash){
+    const h = Object.keys(HASH_MAP).find(k=>HASH_MAP[k]===id);
+    if(h) history.replaceState(null,'', h==='home' ? location.pathname : '#'+h);
+  }
 }
 document.getElementById('c-tab').addEventListener('click',e=>{const b=e.target.closest('button');if(b)goC(b.dataset.s);});
+
+/* ============ URLハッシュで直接開く ============
+   外部サイト（ホームページ等）から特定画面へ誘導するため。
+   例: .../salon-AI-OS/#counsel → AIカウンセラーが直接開く */
+const HASH_MAP={home:'c-home',menu:'c-menu',counsel:'c-counsel',chat:'c-chat',access:'c-access',reserve:'c-reserve'};
+function applyHash(){
+  const id=HASH_MAP[location.hash.replace('#','').toLowerCase()];
+  if(id) goC(id,true);
+}
+window.addEventListener('hashchange',applyHash);
+/* 初回の適用は、チャット・カウンセラーの初期化後（スクリプト末尾）に行う */
 
 function toast(msg){
   const t=document.getElementById('toast');
@@ -469,4 +485,8 @@ window.addEventListener('message',e=>{
   if(active && active.id==='c-chat') initChat();
   if(active && active.id==='c-counsel') resetCounsel();
 });
+
+/* ============ 起動 ============
+   すべての定義が済んだ最後にハッシュを適用する */
+applyHash();
 </script>
