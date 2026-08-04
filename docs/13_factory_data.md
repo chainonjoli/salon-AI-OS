@@ -18,9 +18,17 @@
   "industry": "エステ",
   "intro": "伊勢市の隠れ家プライベートエステ",
   "tone": "soft",              // soft | formal | genki
-  "aiEndpoint": ""             // WorkerのURL。空ならデモモード
+  "geminiKey": "",             // かんたん接続：Gemini APIキー（ブラウザから直接呼ぶ）
+  "aiEndpoint": ""             // 本格接続：WorkerのURL。両方空ならデモモード
 }
 ```
+
+接続の優先順位：`geminiKey`（かんたん接続）→ `aiEndpoint`（Worker経由）→ デモモード。
+これとは別に、どの接続設定でも使える**コピペ方式**がある（指示文をコピーして
+手持ちのAIアプリで生成し、返事を貼り付けて取り込む。`mode: "paste"` で保存）。
+かんたん接続では、Worker用と同じプロンプト（factory.html 内に同期コピー）で
+ブラウザから Gemini API を直接呼ぶ。鍵は localStorage のみに保存され、
+オーナー専用アプリである factory.html に限って許可する方式（公開ページでは使わない）。
 
 ### `factory.products` — 商品（配列）
 
@@ -48,7 +56,7 @@
   "theme": "乾燥肌向けの保湿ケア紹介",
   "productId": "p_1722240000000",   // 使わなかった場合 null
   "productName": "モイストリペアセラム",
-  "mode": "ai",                      // ai | demo
+  "mode": "ai",                      // ai | demo | paste（手持ちのAIアプリから取り込み）
   "createdAt": "2026-07-29T10:05:00.000Z",
   "contents": {
     "instagram":   "…",

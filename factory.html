@@ -197,6 +197,7 @@
           <div class="dots"><i></i><i></i><i></i></div>
           <p id="gen-loading-text" style="margin:12px 0 0">AIが8種類のコンテンツを書いています…</p>
         </div>
+        <button class="btn ghost wide" style="margin-top:10px" onclick="startPasteFlow()">📋 手持ちのAIで作る（コピペ）</button>
         <p style="font-size:11.5px;color:var(--muted);text-align:center;margin-top:14px">Instagram投稿・リール台本・LINE・ブログ・メルマガ・<br>ショート動画台本・キャプション・ハッシュタグ を一度に作ります</p>
       </section>
 
@@ -209,6 +210,28 @@
         <button class="btn accent wide" style="margin-bottom:10px" id="result-again" onclick="goF('f-create')">✨ もう一度つくる</button>
         <button class="btn ghost danger wide" style="margin-bottom:10px" id="result-del" hidden onclick="deleteHistoryItem()">この履歴を削除</button>
         <button class="btn wide" onclick="goF('f-home')">🏠 ホームへ</button>
+      </section>
+
+      <!-- ================= コピペで作る ================= -->
+      <section class="screen" id="f-paste">
+        <div class="topbar"><button class="back" onclick="goF('f-create')">←</button><span class="t">手持ちのAIで作る</span></div>
+        <p style="font-size:12.5px;color:var(--muted);margin:2px 2px 14px">ChatGPT・Claude・Geminiなど、いつも使っているAIアプリで作れます（追加の費用はかかりません）。</p>
+
+        <div class="card" style="margin-bottom:12px">
+          <span class="pill sage">① 指示文をコピーしました</span>
+          <p style="font-size:13px;margin:8px 0 10px">お使いのAIアプリを開いてください。</p>
+          <button class="btn ghost wide" onclick="copyPastePrompt()">もう一度コピーする</button>
+        </div>
+        <div class="card" style="margin-bottom:12px">
+          <span class="pill gold">② AIに貼り付けて送信</span>
+          <p style="font-size:13px;margin:8px 0 0">入力欄を長押し →「ペースト」で貼り付けて送信します。8種類の文章が返ってきます。</p>
+        </div>
+        <div class="card" style="margin-bottom:14px">
+          <span class="pill rose">③ 返事をここに貼り付け</span>
+          <p style="font-size:13px;margin:8px 0 10px">AIの返事をぜんぶコピーして、下に貼り付けてください。</p>
+          <textarea id="paste-input" class="big" style="min-height:150px" placeholder="ここにAIの返事を貼り付け"></textarea>
+        </div>
+        <button class="btn accent wide" onclick="importPasted()">この文章を取り込む</button>
       </section>
 
       <!-- ================= 商品一覧 ================= -->
@@ -268,9 +291,21 @@
         </div>
         <p style="font-size:11.5px;color:var(--muted);margin:4px 2px 0">入力した内容は自動で保存され、コンテンツの文章に反映されます。</p>
 
-        <h2 class="set-h">AI接続</h2>
-        <div class="form-field"><label for="set-endpoint">接続URL <small>（設置手順は docs/06_deploy.md）</small></label>
-          <input id="set-endpoint" placeholder="https://…workers.dev" inputmode="url" autocapitalize="off">
+        <h2 class="set-h">AI接続（本物のAIで書く）</h2>
+        <div class="card" style="margin-bottom:12px">
+          <span class="pill sage">かんたん接続（無料・おすすめ）</span>
+          <p style="font-size:12.5px;color:var(--muted);margin:8px 0 10px">
+            ① <b>aistudio.google.com</b> をスマホで開いてGoogleアカウントでログイン<br>
+            ②「<b>Get API key</b>」→「<b>Create API key</b>」を押す<br>
+            ③ 出てきた「AIza…」で始まる文字をコピーして、下に貼り付けるだけ
+          </p>
+          <div class="form-field" style="margin-bottom:0"><label for="set-gkey">Geminiの鍵</label>
+            <input id="set-gkey" placeholder="AIza… をここに貼り付け" autocapitalize="off" autocomplete="off">
+          </div>
+          <p style="font-size:11px;color:var(--muted);margin:8px 0 0">鍵はこのスマホの中だけに保存されます。他の人に見せないでください。</p>
+        </div>
+        <div class="form-field"><label for="set-endpoint">本格接続（上級者向け・Claudeも使えます） <small>設置手順は docs/06</small></label>
+          <input id="set-endpoint" placeholder="中継役のURL（https://…workers.dev）" inputmode="url" autocapitalize="off">
         </div>
         <button class="btn ghost wide" style="margin-bottom:8px" onclick="testEndpoint()">接続をテストする</button>
         <p id="set-status" style="font-size:12.5px;margin:0 2px"></p>
@@ -279,7 +314,7 @@
         <button class="btn ghost wide" style="margin-bottom:10px" onclick="exportData()">書き出し（バックアップ）</button>
         <button class="btn ghost wide" onclick="pickImportData()">読み込み（バックアップから復元）</button>
         <input type="file" id="data-file" accept="application/json" hidden>
-        <p style="font-size:11.5px;color:var(--muted);margin:10px 2px 0">データはこのスマホ（ブラウザ）の中だけに保存されます。機種変更のときは書き出してから読み込んでください。</p>
+        <p style="font-size:11.5px;color:var(--muted);margin:10px 2px 0">データはこのスマホ（ブラウザ）の中だけに保存されます。機種変更のときは書き出してから読み込んでください。書き出したファイルにはAIの鍵も入るので、他の人に渡さないでください。</p>
       </section>
 
     </div>
@@ -327,10 +362,12 @@ if(!profile){
     industry: 'エステ',
     intro: SC ? SC.brand.tagline : '',
     tone: 'soft',
-    aiEndpoint: (SC && SC.ai && SC.ai.endpoint) || ''
+    aiEndpoint: (SC && SC.ai && SC.ai.endpoint) || '',
+    geminiKey: ''
   };
   store.set('profile', profile);
 }
+if(profile.geminiKey===undefined) profile.geminiKey='';
 let products = store.get('products', []);
 let history  = store.get('history', []);
 
@@ -342,7 +379,9 @@ if(SC && SC.theme){
   r.setProperty('--accent-soft', SC.theme.accentSoft);
 }
 
-const aiOn = () => !!(profile.aiEndpoint && profile.aiEndpoint.trim());
+/* かんたん接続（Gemini鍵の直貼り）を優先。なければ中継役（Worker）のURL */
+const aiOn = () => !!((profile.geminiKey && profile.geminiKey.trim()) || (profile.aiEndpoint && profile.aiEndpoint.trim()));
+const directGemini = () => !!(profile.geminiKey && profile.geminiKey.trim());
 
 /* ============ 画面切替 ============ */
 function goF(id){
@@ -458,8 +497,118 @@ async function startGenerate(){
   showResult(item,'f-create');
 }
 
-/* ============ AI生成（Worker経由） ============ */
+/* ============ かんたん接続：ブラウザからGeminiを直接呼ぶ ============
+   ファクトリーはオーナー専用アプリなので、鍵は自分の端末の中だけで使う。
+   お客様向けページ（index.html）は従来どおり中継役（Worker）経由のみ。
+   プロンプトは server/worker.js の factory 用と同期させること。 */
+const GEMINI_MODEL='gemini-2.5-flash';
+const AI_NG=['治る','治す','完治','消える','医学的に','絶対','必ず効く','副作用なし','激安'];
+const AI_TONES={
+  soft:'丁寧だが距離が近い。語尾は「〜ですね」「〜してみてくださいね」など柔らかく。',
+  formal:'礼儀正しく落ち着いた敬体。信頼感を大切に、砕けすぎない。',
+  genki:'明るく前向きで元気。「！」を適度に使うが、うるさくならない程度に。'
+};
+const KIND_SPECS={
+  instagram:'Instagram投稿：本文300〜500字。冒頭に読者を引き込む1行、絵文字は控えめ（2〜4個）、最後に予約・お問い合わせへの導線。',
+  reel:'Instagramリール台本：15〜30秒想定。「0-3秒フック／本編／締め」のシーン別に、セリフとテロップ案を書く。',
+  line:'LINE配信文：200字前後。挨拶→お知らせ→予約導線。絵文字1〜2個。友だちに話しかけるような距離感。',
+  blog:'ブログ記事：800〜1200字。1行目にタイトル、見出し（##）を3つ使った構成。',
+  mail:'メールマガジン：1行目に「件名：〜」、本文400〜600字。丁寧な挨拶で始めて結びまで書く。',
+  shortVideo:'ショート動画台本：30〜60秒想定（YouTube Shorts/TikTok向け）。シーン別にナレーションと画面構成を書く。',
+  caption:'キャプション：写真に添える100字前後の汎用短文。',
+  hashtags:'ハッシュタグ：15〜20個を半角スペース区切りで。ビッグ・ミドル・スモールタグと地域/店名タグをミックス。'
+};
+/* 役割・お店のプロフィール・守るべきルール（出力形式の前まで）。
+   かんたん接続とコピペ方式で共通に使う */
+function aiCoreLines(){
+  return [
+    'あなたは小規模サロン・店舗のためのSNS・販促コンテンツ制作のプロフェッショナルです。',
+    '次のお店の「中の人」として、そのまま投稿できる品質の日本語コンテンツを書きます。',
+    '',
+    '【お店のプロフィール】',
+    '店名：'+(profile.shopName||'（未設定）'),
+    '業種：'+(profile.industry||'サロン'),
+    profile.intro?'お店の紹介：'+profile.intro:'',
+    '文体：'+(AI_TONES[profile.tone]||AI_TONES.soft),
+    '',
+    '【必ず守るルール】',
+    '1. 与えられたテーマ・商品情報だけを根拠にする。価格・効果・成分を創作しない。',
+    '2. 薬機法・医療広告に配慮し、次の表現を使わない：'+AI_NG.join('、')+'。効果は「〜が期待できます」の範囲で。',
+    '3. 誇大表現・断定・他店批判をしない。',
+    '4. 商品情報に「注意点」があれば、ブログとメールマガジンには必ず注意書きとして含める。'
+  ].filter(s=>s!=='');
+}
+function buildAISystem(){
+  return aiCoreLines().concat([
+    '5. 出力はJSONのみ。前後に説明文やコードフェンスを付けない。',
+    '',
+    '【出力形式（この8キーを持つJSONオブジェクト）】',
+    '{'+KINDS.map(k=>'"'+k.key+'":"..."').join(',')+'}',
+    '',
+    '【各キーの仕様】',
+    ...KINDS.map(k=>'- '+k.key+' … '+KIND_SPECS[k.key])
+  ]).join('\n');
+}
+function buildUserMsg(theme, product){
+  return [
+    theme?'【テーマ】\n'+theme:'【テーマ】\n（指定なし。下の商品を主役にした発信を作る）',
+    product?'\n【商品情報（登録ナレッジ）】\n'+JSON.stringify({
+      商品名:product.name,ブランド名:product.brand,特徴:product.features,効果:product.effects,
+      使用方法:product.usage,おすすめの人:product.target,注意点:product.cautions
+    },null,1):''
+  ].filter(s=>s!=='').join('\n');
+}
+function parseJsonLoose(text){
+  const s=text.indexOf('{'),e=text.lastIndexOf('}');
+  if(s===-1||e<=s) throw new Error('no json');
+  return JSON.parse(text.slice(s,e+1));
+}
+async function geminiCall({system,userParts,maxTokens}){
+  const body={contents:[{role:'user',parts:userParts}],generationConfig:{maxOutputTokens:maxTokens}};
+  if(system) body.system_instruction={parts:[{text:system}]};
+  const res=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+GEMINI_MODEL+':generateContent',{
+    method:'POST',
+    headers:{'content-type':'application/json','x-goog-api-key':profile.geminiKey.trim()},
+    body:JSON.stringify(body)
+  });
+  if(!res.ok) throw new Error('gemini http '+res.status);
+  const data=await res.json();
+  const cand=(data.candidates||[])[0];
+  const text=((cand&&cand.content&&cand.content.parts)||[]).map(p=>p.text||'').join('\n').trim();
+  if(!text) throw new Error('gemini empty');
+  return text;
+}
+async function geminiGenerate(theme, product){
+  const userMsg=buildUserMsg(theme,product)+'\n\n上記をもとに、8種類すべてのコンテンツをJSONで出力してください。';
+  const text=await geminiCall({system:buildAISystem(),userParts:[{text:userMsg}],maxTokens:8192});
+  const raw=parseJsonLoose(text);
+  const out={};
+  KINDS.forEach(k=>{out[k.key]=String(raw[k.key]||'').trim();});
+  if(!out.instagram) throw new Error('empty result');
+  return out;
+}
+const EXTRACT_PROMPT=[
+  'この資料（商品カタログ・パンフレット等）から商品情報を読み取り、次のキーを持つJSONオブジェクトだけを出力してください。',
+  '{"name":"商品名","brand":"ブランド名","features":"特徴","effects":"効果","usage":"使用方法","target":"おすすめの人","cautions":"注意点"}',
+  '・各値は日本語の自然な文章（1〜3文）。資料に記載がない項目は空文字にする。推測で埋めない。',
+  '・複数商品が載っている場合は、最も大きく扱われている1商品だけを対象にする。',
+  '・JSON以外の文字（説明・コードフェンス）を出力しない。'
+].join('\n');
+async function geminiExtract(mediaType,b64){
+  const text=await geminiCall({
+    userParts:[{inline_data:{mime_type:mediaType,data:b64}},{text:EXTRACT_PROMPT}],
+    maxTokens:2048
+  });
+  const raw=parseJsonLoose(text);
+  const product={};
+  ['name','brand','features','effects','usage','target','cautions'].forEach(f=>{product[f]=String(raw[f]||'').trim();});
+  if(!product.name) throw new Error('no product');
+  return product;
+}
+
+/* ============ AI生成（かんたん接続 or Worker経由） ============ */
 async function aiGenerate(theme, product){
+  if(directGemini()) return geminiGenerate(theme, product);
   const res=await fetch(profile.aiEndpoint,{
     method:'POST',
     headers:{'content-type':'application/json'},
@@ -625,7 +774,7 @@ function showResult(item, backTo){
     item.theme ? 'テーマ：'+item.theme : null,
     item.productName ? '商品：'+item.productName : null,
     d.toLocaleDateString('ja-JP')+' '+d.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'}),
-    item.mode==='demo' ? '（お試しモードで作成）' : null
+    {demo:'（お試しモードで作成）', paste:'（手持ちのAIで作成）'}[item.mode] || null
   ].filter(Boolean).join('　');
   document.getElementById('result-meta').textContent=meta;
 
@@ -671,6 +820,89 @@ async function copyAll(){
     .join('\n\n――――――――――\n\n');
   await copyText(text);
   toast('8種類すべてをコピーしました');
+}
+
+/* ============ コピペ方式（手持ちのAIアプリで作る） ============
+   ChatGPT・Claude・Geminiなど、オーナーが既に使っているAIアプリに
+   指示文を貼り付けて生成し、返ってきた文章を取り込む。追加費用ゼロ。
+   AIアプリの画面で読みやすいよう、JSONではなく見出し付きの文章で受け取る。 */
+const PASTE_MARK = k => '=== ' + k.label + ' ===';
+
+function buildPastePrompt(theme, product){
+  return aiCoreLines().concat([
+    '5. 下の【出力形式】の見出しを、書かれているとおりそのまま使う。前置き・あとがき・感想は書かない。',
+    '',
+    '【出力形式】',
+    '次の8つを、この見出しをそのまま付けて、上から順に書いてください。',
+    '',
+    ...KINDS.map(k=>PASTE_MARK(k)+'\n（'+KIND_SPECS[k.key]+'）'),
+    '',
+    '――――――――――',
+    '',
+    buildUserMsg(theme,product),
+    '',
+    '上記をもとに、8種類すべてを出力してください。'
+  ]).join('\n');
+}
+
+let pasteTheme=null, pasteProduct=null;
+
+function startPasteFlow(){
+  const theme=document.getElementById('theme-input').value.trim();
+  const product=products.find(p=>p.id===selectedProductId)||null;
+  if(!theme && !product){ toast('テーマを入力するか、商品を選んでください'); return; }
+  pasteTheme=theme; pasteProduct=product;
+  document.getElementById('paste-input').value='';
+  copyPastePrompt();
+  goF('f-paste');
+}
+async function copyPastePrompt(){
+  await copyText(buildPastePrompt(pasteTheme,pasteProduct));
+  toast('指示文をコピーしました');
+}
+
+/* 見出し行の判定：「=== Instagram投稿 ===」を基本に、
+   AIアプリが付けがちな装飾（**・##・■・【】・番号）も許容する */
+function pasteHeaderKey(line){
+  const s=line.replace(/[=#*■●◆・\-–—【】\[\]<>「」（）():：0-9．.\s　]/g,'');
+  if(!s) return null;
+  for(const k of KINDS){ if(s===k.label.replace(/\s/g,'')) return k.key; }
+  return null;
+}
+function parsePasted(text){
+  const out={}; let cur=null, buf=[];
+  const flush=()=>{ if(cur){ const t=buf.join('\n').trim(); if(t) out[cur]=t; } buf=[]; };
+  text.split(/\r?\n/).forEach(line=>{
+    const key=pasteHeaderKey(line);
+    if(key){ flush(); cur=key; }
+    else if(cur) buf.push(line);
+  });
+  flush();
+  return out;
+}
+function importPasted(){
+  const raw=document.getElementById('paste-input').value;
+  if(!raw.trim()){ toast('AIの返事を貼り付けてください'); return; }
+  const contents=parsePasted(raw);
+  const n=KINDS.filter(k=>contents[k.key]).length;
+  if(n===0){
+    toast('うまく読み取れませんでした。AIの返事をぜんぶコピーして貼り付けてください');
+    return;
+  }
+  const item={
+    id:'h_'+Date.now(),
+    theme:pasteTheme||null,
+    productId:pasteProduct?pasteProduct.id:null,
+    productName:pasteProduct?pasteProduct.name:null,
+    mode:'paste',
+    createdAt:new Date().toISOString(),
+    contents
+  };
+  history.unshift(item);
+  if(history.length>100) history.length=100;
+  store.set('history',history);
+  toast(n+'種類を取り込みました');
+  showResult(item,'f-create');
 }
 
 /* ============ 商品 ============ */
@@ -758,15 +990,21 @@ document.getElementById('import-file').addEventListener('change',async e=>{
       r.onerror=ng;
       r.readAsDataURL(file);
     });
-    const res=await fetch(profile.aiEndpoint,{
-      method:'POST',headers:{'content-type':'application/json'},
-      body:JSON.stringify({dept:'factory',action:'extract',file:{mediaType:file.type||'application/pdf',data:b64}})
-    });
-    if(!res.ok) throw new Error('http '+res.status);
-    const data=await res.json();
-    if(!data.product) throw new Error('bad response');
+    let product;
+    if(directGemini()){
+      product=await geminiExtract(file.type||'application/pdf',b64);
+    }else{
+      const res=await fetch(profile.aiEndpoint,{
+        method:'POST',headers:{'content-type':'application/json'},
+        body:JSON.stringify({dept:'factory',action:'extract',file:{mediaType:file.type||'application/pdf',data:b64}})
+      });
+      if(!res.ok) throw new Error('http '+res.status);
+      const data=await res.json();
+      if(!data.product) throw new Error('bad response');
+      product=data.product;
+    }
     ['name','brand','features','effects','usage','target','cautions'].forEach(f=>{
-      if(data.product[f]) document.getElementById('pe-'+f).value=String(data.product[f]);
+      if(product[f]) document.getElementById('pe-'+f).value=String(product[f]);
     });
     toast('読み取りました。内容を確認して保存してください');
   }catch(err){
@@ -793,7 +1031,7 @@ function renderHistory(){
     b.innerHTML='<b>'+esc(h.theme||h.productName||'（無題）')+'</b><span class="d">'
       +d.toLocaleDateString('ja-JP')+' '+d.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})
       +'　'+n+'種類'+(h.productName&&h.theme?'　🧴 '+esc(h.productName):'')
-      +(h.mode==='demo'?'　（お試し）':'')+'</span>';
+      +({demo:'　（お試し）', paste:'　（コピペ）'}[h.mode]||'')+'</span>';
     b.onclick=()=>showResult(h,'f-history');
     box.appendChild(b);
   });
@@ -813,9 +1051,10 @@ function renderSettings(){
   document.getElementById('set-shop').value=profile.shopName||'';
   document.getElementById('set-industry').value=profile.industry||'エステ';
   document.getElementById('set-intro').value=profile.intro||'';
+  document.getElementById('set-gkey').value=profile.geminiKey||'';
   document.getElementById('set-endpoint').value=profile.aiEndpoint||'';
   document.querySelectorAll('.tone-chips .chip').forEach(c=>c.classList.toggle('on',c.dataset.tone===profile.tone));
-  document.getElementById('set-status').textContent = aiOn() ? '' : 'いまはお試しモードです（URL未設定）';
+  document.getElementById('set-status').textContent = aiOn() ? '' : 'いまはお試しモードです（鍵もURLも未設定）';
   document.getElementById('set-status').className='';
 }
 function saveProfile(){ store.set('profile',profile); }
@@ -823,12 +1062,25 @@ function setTone(t){ profile.tone=t; saveProfile(); renderSettings(); }
 document.getElementById('set-shop').addEventListener('input',e=>{profile.shopName=e.target.value.trim();saveProfile();});
 document.getElementById('set-industry').addEventListener('change',e=>{profile.industry=e.target.value;saveProfile();});
 document.getElementById('set-intro').addEventListener('input',e=>{profile.intro=e.target.value.trim();saveProfile();});
+document.getElementById('set-gkey').addEventListener('input',e=>{profile.geminiKey=e.target.value.trim();saveProfile();});
 document.getElementById('set-endpoint').addEventListener('input',e=>{profile.aiEndpoint=e.target.value.trim();saveProfile();});
 
 async function testEndpoint(){
   const st=document.getElementById('set-status');
-  if(!aiOn()){ st.textContent='URLを入力してください'; st.className='status-ng'; return; }
+  if(!aiOn()){ st.textContent='Geminiの鍵（またはURL）を入力してください'; st.className='status-ng'; return; }
   st.textContent='接続を確認しています…'; st.className='';
+  /* かんたん接続：Geminiに小さなテスト送信 */
+  if(directGemini()){
+    try{
+      await geminiCall({userParts:[{text:'テスト。「OK」とだけ返してください'}],maxTokens:10});
+      st.textContent='✓ 接続できました。Gemini（かんたん接続）が文章を書きます';
+      st.className='status-ok';
+    }catch(e){
+      st.textContent='接続できませんでした。鍵が正しく貼れているか（AIza…で始まる文字全部）をご確認ください';
+      st.className='status-ng';
+    }
+    return;
+  }
   try{
     const res=await fetch(profile.aiEndpoint,{
       method:'POST',headers:{'content-type':'application/json'},
