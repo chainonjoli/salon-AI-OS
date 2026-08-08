@@ -18,6 +18,16 @@
      デプロイのたびに消さないための保険 */
   "keep_vars": true,
 
+  /* テナント台帳・利用量のデータベース（マルチテナント・ライト）
+     database_id は公開情報（アクセスにはアカウント権限が必要） */
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "salon-ai-os",
+      "database_id": "70f44112-064c-44bb-ae15-6101773f593b"
+    }
+  ],
+
   /* 秘密でない運用設定。値を変えたらpushすれば反映される */
   "vars": {
     /* 使うAI。'gemini' か 'claude' */
