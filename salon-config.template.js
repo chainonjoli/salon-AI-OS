@@ -17,6 +17,7 @@ window.SALON_CONFIG = {
     eyebrow: 'PRIVATE BEAUTY SALON',      // サロン名の上の小さな英字
     tagline: 'サロンのキャッチコピーを1行で',
     heroLine: '— 写真の上に重ねる、印象的な一言。',
+    heroImage: '',                        // トップ写真のURL（空欄なら上品な模様が表示されます）
     demoIntro: '「◯◯サロン」を題材に、実際に操作できます。'
   },
 

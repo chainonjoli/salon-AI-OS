@@ -16,6 +16,7 @@ window.SALON_CONFIG = {
     eyebrow: 'FACIAL ESTHETIC SALON — ISE',  // サロン名の上の小さな英字
     tagline: '肌を整え、心を癒す。伊勢市の隠れ家プライベートエステ',
     heroLine: '— たった90分で、心がふっと軽くなる場所。',   // 写真の上の一言
+    heroImage: 'https://chainonjoli.github.io/hp/hero.png', // トップ写真のURL（空欄なら模様）
     demoIntro: '伊勢市の隠れ家エステサロン「chainonjoli（シェノンジョリ）」を題材に、実際に操作できます。'
   },
 

@@ -155,9 +155,16 @@
     border-bottom:1px solid var(--line-2);
   }
   .hero-visual .in{
-    position:absolute;left:22px;bottom:16px;
+    position:absolute;left:22px;bottom:16px;z-index:1;
     font-family:var(--serif);font-size:14.5px;letter-spacing:.1em;color:var(--ink-2);
   }
+  /* サロン写真（brand.heroImage）が設定されているとき */
+  .hero-visual.has-img{background-size:cover;background-position:center}
+  .hero-visual.has-img::after{
+    content:"";position:absolute;inset:0;
+    background:linear-gradient(to top,rgba(30,24,20,.48),rgba(30,24,20,0) 50%);
+  }
+  .hero-visual.has-img .in{color:#fff;text-shadow:0 1px 10px rgba(0,0,0,.25)}
   .tag{
     font-family:var(--serif);font-weight:400;font-size:22px;line-height:1.85;letter-spacing:.03em;
     color:var(--ink);margin:30px 0 22px;text-wrap:balance;
@@ -379,6 +386,15 @@ function hydrate(){
   $('c-name').innerHTML = C.brand.name + (C.brand.reading ? ' <small>' + C.brand.reading + '</small>' : '');
   $('c-tag').textContent = C.brand.tagline;
   $('c-heroline').textContent = C.brand.heroLine;
+  /* トップ写真：設定があれば表示、無ければ従来の模様のまま */
+  const hv = document.querySelector('#c-home .hero-visual');
+  if (C.brand.heroImage) {
+    hv.classList.add('has-img');
+    hv.style.backgroundImage = 'url("' + String(C.brand.heroImage).replace(/["\\]/g, '') + '")';
+  } else {
+    hv.classList.remove('has-img');
+    hv.style.backgroundImage = '';
+  }
 
   $('home-cards').innerHTML = C.home.cards.map(cd =>
     '<div class="card" style="margin-bottom:12px"><span class="pill ' + (cd.tone||'plain') + '">' + cd.pill + '</span>' +

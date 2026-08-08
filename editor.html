@@ -163,6 +163,7 @@
         </div>
         <div class="field"><label>キャッチコピー <small>サロン名の下に出ます</small></label><input type="text" id="f-tagline"></div>
         <div class="field"><label>写真の上の一言</label><input type="text" id="f-heroline"></div>
+        <div class="field"><label>トップ写真のURL <small>空欄なら模様のまま。縦横比4:3で切り抜かれます</small></label><input type="url" id="f-heroimg" placeholder="https://…/photo.jpg"></div>
       </div>
     </details>
 
@@ -388,6 +389,7 @@ function fill(cfg){
   $('f-name').value=cfg.brand.name; $('f-reading').value=cfg.brand.reading||'';
   $('f-mark').value=cfg.brand.mark; $('f-eyebrow').value=cfg.brand.eyebrow;
   $('f-tagline').value=cfg.brand.tagline; $('f-heroline').value=cfg.brand.heroLine;
+  $('f-heroimg').value=cfg.brand.heroImage||'';
   paletteIdx=Math.max(0,PALETTES.findIndex(p=>p.accent.toLowerCase()===String(cfg.theme.accent).toLowerCase()));
   renderPalette();
   $('f-line').value=cfg.contact.lineUrl; $('f-tel').value=cfg.contact.telDisplay; $('f-telnote').value=cfg.contact.telNote;
@@ -417,6 +419,7 @@ function collect(){
   cfg.brand.name=v('f-name')||'サロン名';
   cfg.brand.reading=v('f-reading'); cfg.brand.mark=v('f-mark')||cfg.brand.name.slice(0,1);
   cfg.brand.eyebrow=v('f-eyebrow'); cfg.brand.tagline=v('f-tagline'); cfg.brand.heroLine=v('f-heroline');
+  cfg.brand.heroImage=v('f-heroimg');
   cfg.brand.demoIntro='「'+cfg.brand.name+'」を題材に、実際に操作できます。';
   const p=PALETTES[paletteIdx];
   cfg.theme={accent:p.accent,accentDeep:p.deep,accentSoft:p.soft};
