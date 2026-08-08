@@ -67,10 +67,12 @@
 - **SaaSとして複数店舗に売る**：約 15%
 
 ### 一言でいうと
-**「画面と体験は完成しているが、AIがまだ本番接続されておらず、データが保存されない」状態。**
+**「AI受付は本番稼働中（2026-08-08〜）。ただしデータはまだ保存されない」状態。**
 
-現状は「AIを装ったよくできたプロトタイプ」です。中核である
-「本物のAIが、サロンのナレッジを使って自由に会話する」部分は**コードは書けているが未接続・未検証**です。
+中核である「本物のAIがサロンのナレッジを使って自由に会話する」部分は、
+Gemini（gemini-3.6-flash・有料）＋Cloudflare Workerで接続済み。
+`check.html` の受け入れ検査（接続／営業時間／料金／医療的断定／未登録メニュー）に合格しています。
+管理画面の保存・カルテ等のデータ永続化は引き続き未実装です。
 
 ### 5段階分類
 
@@ -105,6 +107,8 @@ salon-AI-OS/
 ├── editor.html                 設定エディタ（フォーム→ライブプレビュー→書き出し）
 ├── factory.html                AIコンテンツファクトリー（AI広報の実装）
 ├── intro.html                  販売用の商品紹介ページ
+├── check.html                  AI受付の接続診断（受け入れ検査5項目・noindex）
+├── wrangler.jsonc              Cloudflare Git連携の設定（Worker本体と運用変数の指定）
 ├── salon-config.js             ★ chainonjoli のナレッジ（実データ）
 ├── salon-config.template.js    新規サロン用の空テンプレート
 ├── presets.js                  業種プリセット5種（美容室/ネイル/アイラッシュ/整体/リラクゼーション）
@@ -169,7 +173,9 @@ factory.html ──POST {dept:'factory', action:'generate'|'extract'|'ping'}─�
 - `ai.endpoint` に Worker のURLを入れると **「AIモード」**
   - 自由入力欄が出現し、直近12往復を Worker へPOST
   - 通信失敗時はLINE・電話への案内にフォールバック
-- **現在 `ai.endpoint` は空。つまり本物のAIはまだ一度も稼働していません**
+- **2026-08-08より本番接続済み**：Cloudflare Worker（Git連携デプロイ・`wrangler.jsonc` 参照）＋
+  Gemini（`gemini-3.6-flash`・有料）。接続診断ページ `check.html` の5項目検査で合格を確認済み。
+  受付は `thinkingLevel:'low'` で思考トークンを抑えてコスト管理している
 
 ### 設定エディタ `editor.html` 【完成】
 - フォーム編集 → 右のiframeへ即時反映（`postMessage`）
@@ -249,7 +255,7 @@ factory.html ──POST {dept:'factory', action:'generate'|'extract'|'ping'}─�
 
 | # | タスク | 補足 |
 |---|---|---|
-| A-1 | **AI受付を実接続して動作検証する** | Anthropic または Google AI Studio のアカウント作成 → Cloudflare Worker デプロイ → `salon-config.js` の `ai.endpoint` に設定。手順は `docs/06_deploy.md`。**商品の核心が未検証のまま**なのが最大のリスク |
+| A-1 | ~~AI受付を実接続して動作検証する~~ **完了（2026-08-08）** | Gemini（gemini-3.6-flash・有料）＋Cloudflare WorkerのGit連携で接続。`check.html` の診断5項目で合格。回数上限は `wrangler.jsonc` の `RATE_PER_DAY=60` |
 | A-2 | **API側の月額上限を設定する** | Anthropic Console → Settings → Limits。Gemini の場合は Google Cloud の予算アラート。**オーナー本人のログインが必要なためAIでは実行できません** |
 | A-3 | **`admin.pin` を変更し、公開ページから削除する** | 現在 `intro.html` にデモ用PINとして実PINが記載。実顧客データを入れる前に必須 |
 | A-4 | **`worker.js` のナレッジ二重管理を解消する** | `worker.js` 内の `SALON` 定数が `salon-config.js` の内容を手動コピーしている。価格を変えると片方だけ古くなる（§11-1） |
@@ -386,9 +392,9 @@ SNS投稿もLINE配信も、AIが自動送信することは**設計上ありま
 |---|---|---|
 | **GitHub** | ソース管理 | `chainonjoli/salon-AI-OS`（public / branch `main`） |
 | **GitHub Pages** | 本番配信 | 稼働中。`main` への push で自動デプロイ |
-| **Cloudflare Workers** | AIプロキシ（APIキー秘匿） | **コードはあるが未デプロイ**。`server/worker.js` |
-| **Anthropic API** | Claude（既定 `claude-opus-5`） | **未契約／未接続** |
-| **Google AI Studio** | Gemini（既定 `gemini-2.5-flash`） | **未契約／未接続**（無料枠あり・代替選択肢） |
+| **Cloudflare Workers** | AIプロキシ（APIキー秘匿） | **稼働中**（2026-08-08〜）。GitHubと連携し `main` へのpushで自動デプロイ（設定は `wrangler.jsonc`）。APIキーはダッシュボードのSecret `GEMINI_API_KEY` のみ |
+| **Google AI Studio (Gemini)** | AI受付・ファクトリーの頭脳（`gemini-3.6-flash`） | **契約済み・有料・稼働中**。受付は thinkingLevel low でコスト抑制 |
+| **Anthropic API** | Claude（コードは対応済み・切替可能） | 未契約。`PROVIDER=claude`＋キー登録で切替できる |
 | **LINE公式アカウント** | 予約・問い合わせ導線 | 稼働中（URLは `salon-config.js` の `contact.lineUrl`） |
 | **データベース** | — | **未使用**。設計のみ `docs/03_database_design.md` |
 
@@ -582,8 +588,9 @@ Salon AI OS の AI受付とは完全に別系統で、ナレッジも共有し�
 
 ### 安全確認
 - [ ] リポジトリ内にAPIキーが無い（`grep -rEi "sk-ant|AIza[A-Za-z0-9_-]{20,}" .` が空）
-- [ ] `salon-config.js` の `ai.endpoint` が空（＝まだ課金が発生していない）
-- [ ] Anthropic / Google 側の月額上限が設定済みか、オーナーに確認した
+- [ ] `salon-config.js` の `ai.endpoint` にWorkerのURLが入っている（＝本番稼働中。**課金が発生する状態**）
+- [ ] `check.html`（接続診断）を実行し、5項目が ✅/⚠️ である
+- [ ] Google Cloud側の予算アラートが設定済みか、オーナーに確認した（通知のみで自動停止しない点も理解しているか）
 
 ### 理解の確認（新しいAIへの問い）
 - [ ] 「このシステムの最終目標は？」→ **他サロンへの販売**と答えられる
