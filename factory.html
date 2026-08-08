@@ -364,6 +364,40 @@ if(SC && SC.theme){
 
 const aiOn = () => !!(profile.aiEndpoint && profile.aiEndpoint.trim());
 
+/* ============ オーナーポータル連携（?s=&k= 付きで開かれたとき） ============
+   ・AI接続先を自動設定（手動設定が不要に）
+   ・テナントの店名・紹介・テーマ色を自動で合わせる
+   ・AI利用量がそのサロンのものとして記録される（salonを添える）
+   パラメータ無しで開いた場合は従来と完全に同じ動作 */
+const PQ = new URLSearchParams(location.search);
+const PORTAL = { slug: (PQ.get('s') || '').toLowerCase(), key: PQ.get('k') || '' };
+if (PORTAL.slug && PORTAL.key) {
+  if (SC && SC.ai && SC.ai.endpoint) { profile.aiEndpoint = SC.ai.endpoint; store.set('profile', profile); }
+  if (aiOn()) {
+    fetch(profile.aiEndpoint.replace(/\/$/, '') + '/config?s=' + encodeURIComponent(PORTAL.slug))
+      .then(r => r.ok ? r.json() : null)
+      .then(cfg => {
+        if (!cfg || !cfg.brand) return;
+        profile.shopName = cfg.brand.name || profile.shopName;
+        profile.intro = cfg.brand.tagline || profile.intro;
+        store.set('profile', profile);
+        if (cfg.theme) {
+          const r = document.documentElement.style;
+          r.setProperty('--accent', cfg.theme.accent);
+          r.setProperty('--accent-deep', cfg.theme.accentDeep);
+          r.setProperty('--accent-soft', cfg.theme.accentSoft);
+        }
+        renderHome();
+      }).catch(() => {});
+  }
+  /* 戻る導線 */
+  const bar = document.createElement('a');
+  bar.href = 'owner.html?s=' + encodeURIComponent(PORTAL.slug) + '&k=' + encodeURIComponent(PORTAL.key);
+  bar.textContent = '← ポータルへ戻る';
+  bar.style.cssText = 'display:block;padding:12px 20px;margin:0 -20px;font-size:13px;font-weight:600;color:var(--accent-deep);background:var(--accent-soft);text-decoration:none';
+  document.getElementById('f-home').prepend(bar);
+}
+
 /* ============ 画面切替 ============ */
 function goF(id){
   document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('active',s.id===id));
@@ -443,7 +477,7 @@ async function makeIdeas(){
     try{
       const res=await fetch(profile.aiEndpoint,{
         method:'POST',headers:{'content-type':'application/json'},
-        body:JSON.stringify({dept:'factory',action:'ideas',input:{
+        body:JSON.stringify({dept:'factory',action:'ideas',salon:PORTAL.slug||undefined,input:{
           topic, month:new Date().getMonth()+1,
           profile:{shopName:profile.shopName,industry:profile.industry,intro:profile.intro,tone:profile.tone}
         }})
@@ -546,7 +580,7 @@ async function aiGenerate(theme, product){
     method:'POST',
     headers:{'content-type':'application/json'},
     body:JSON.stringify({
-      dept:'factory', action:'generate',
+      dept:'factory', action:'generate', salon: PORTAL.slug || undefined,
       input:{
         theme: theme||'',
         product: product ? {
@@ -842,7 +876,7 @@ document.getElementById('import-file').addEventListener('change',async e=>{
     });
     const res=await fetch(profile.aiEndpoint,{
       method:'POST',headers:{'content-type':'application/json'},
-      body:JSON.stringify({dept:'factory',action:'extract',file:{mediaType:file.type||'application/pdf',data:b64}})
+      body:JSON.stringify({dept:'factory',action:'extract',salon:PORTAL.slug||undefined,file:{mediaType:file.type||'application/pdf',data:b64}})
     });
     if(!res.ok) throw new Error('http '+res.status);
     const data=await res.json();

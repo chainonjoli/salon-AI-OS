@@ -1,0 +1,523 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>オーナーポータル｜Salon AI OS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Old+Mincho:wght@400;500&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  /* Salon AI OS Design System v1（オーナーポータル） */
+  :root{
+    --paper:#FFFFFF; --bg:#F3EEE7; --surface:#F4EFE8; --surface-2:#FCFAF6;
+    --line:#E7E0D6; --line-2:#F0EAE1;
+    --ink:#2C2723; --ink-2:#5C544C; --muted:#8E857A;
+    --accent:#8C6F58; --accent-deep:#6E543F; --accent-soft:#F4EEE7;
+    --hair:color-mix(in srgb, var(--accent) 45%, #FFF);
+    --warn:#8A713F; --warn-soft:#F5EEDF; --bad:#9A5A52; --bad-soft:#F4E9E7;
+    --serif:'Zen Old Mincho',"Hiragino Mincho ProN",serif;
+    --sans:'Zen Kaku Gothic New',"Hiragino Sans","Noto Sans JP",-apple-system,sans-serif;
+    color-scheme:light;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15.5px;line-height:1.9;-webkit-font-smoothing:antialiased}
+  button{font-family:inherit;font-size:inherit;color:inherit;background:none;border:none;padding:0;cursor:pointer}
+  button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+  input,select,textarea{font-family:inherit;font-size:16px;color:inherit}
+  a{color:inherit;text-decoration:none}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+  .app{max-width:560px;margin:0 auto;min-height:100vh;background:var(--paper);border-left:1px solid var(--line);border-right:1px solid var(--line);padding-bottom:96px}
+  .view{display:none;padding:0 22px 40px;animation:fade .22s ease}
+  .view.active{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  .head{position:sticky;top:0;z-index:10;display:flex;align-items:center;gap:12px;padding:18px 0 14px;background:var(--paper);border-bottom:1px solid var(--line-2);margin-bottom:6px}
+  .head .back{width:36px;height:36px;border-radius:18px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:var(--ink-2);flex:none}
+  .head .t{font-family:var(--serif);font-size:17px;letter-spacing:.06em}
+  .head .salon{margin-left:auto;font-size:11px;letter-spacing:.1em;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:45%}
+
+  .label{font-size:11px;letter-spacing:.2em;color:var(--muted);margin:28px 0 10px}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:52px;padding:0 20px;border-radius:4px;font-weight:500;font-size:15px;letter-spacing:.04em;background:var(--accent-deep);color:#fff}
+  .btn:active{opacity:.8}
+  .btn.ghost{background:var(--paper);color:var(--ink);border:1px solid var(--line)}
+  .btn.danger{background:var(--paper);color:var(--bad);border:1px solid var(--line)}
+  .btn.wide{width:100%}
+  .num{font-variant-numeric:tabular-nums}
+
+  /* 今日（ホーム） */
+  .stats{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
+  .stat{background:var(--surface-2);border:1px solid var(--line-2);border-radius:4px;padding:16px;text-align:left}
+  .stat:active{border-color:var(--hair);background:var(--accent-soft)}
+  .stat .k{font-size:12px;letter-spacing:.08em;color:var(--muted);display:block}
+  .stat .v{font-family:var(--serif);font-size:30px;line-height:1.3;letter-spacing:.02em}
+  .stat .v small{font-size:13px;color:var(--muted);font-family:var(--sans);margin-left:2px}
+  .banner{display:none;margin-top:16px;padding:14px 16px;background:var(--warn-soft);border:1px solid var(--line-2);border-radius:4px;font-size:14px;line-height:1.9;color:var(--warn)}
+  .banner button{float:right;color:var(--muted);font-size:13px;padding:0 4px}
+
+  .row{display:flex;justify-content:space-between;align-items:baseline;gap:14px;padding:15px 0;border-top:1px solid var(--line-2);text-align:left;width:100%}
+  .row:last-child{border-bottom:1px solid var(--line-2)}
+  .row b{font-size:15.5px;font-weight:500;letter-spacing:.02em;display:block}
+  .row .d{font-size:12.5px;color:var(--muted);display:block;margin-top:2px}
+  .row .r{flex:none;text-align:right;font-size:13.5px;color:var(--ink-2);white-space:nowrap}
+  .row .r .sub{display:block;font-size:11.5px;color:var(--muted)}
+  .tagchip{display:inline-block;font-size:10.5px;letter-spacing:.1em;padding:2px 8px;border-radius:3px;margin-left:6px;vertical-align:1px}
+  .tagchip.follow{background:var(--warn-soft);color:var(--warn)}
+  .tagchip.dormant{background:var(--bad-soft);color:var(--bad)}
+  .empty{padding:18px 0;font-size:13.5px;color:var(--muted);border-top:1px solid var(--line-2)}
+  .more{width:100%;text-align:center;padding:12px 0;font-size:13.5px;color:var(--accent-deep);border-top:1px solid var(--line-2)}
+
+  /* 一覧 */
+  .search{display:flex;gap:10px;margin-top:14px}
+  .search input{flex:1;min-height:50px;padding:0 16px;background:var(--surface-2);border:1px solid var(--line);border-radius:25px;outline:none}
+  .search input:focus{border-color:var(--hair)}
+  .chips{display:flex;gap:8px;overflow-x:auto;padding:12px 0 4px;scrollbar-width:none}
+  .chips::-webkit-scrollbar{display:none}
+  .chips button{flex:none;min-height:40px;padding:0 16px;border-radius:20px;font-size:13.5px;letter-spacing:.02em;background:var(--paper);border:1px solid var(--line);color:var(--ink-2);white-space:nowrap}
+  .chips button.on{background:var(--accent-soft);border-color:var(--hair);color:var(--accent-deep);font-weight:700}
+
+  /* フォーム */
+  .field{margin:0 0 16px}
+  .field label{display:block;font-size:12.5px;font-weight:500;color:var(--muted);margin-bottom:6px;letter-spacing:.04em}
+  .field input,.field select,.field textarea{width:100%;min-height:52px;border:1px solid var(--line);border-radius:4px;padding:12px 14px;background:var(--surface-2)}
+  .field textarea{min-height:96px;resize:vertical;line-height:1.8}
+  .field input:focus,.field select:focus,.field textarea:focus{border-color:var(--hair);outline:none}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+  .hint{font-size:12px;color:var(--muted);margin-top:4px}
+
+  /* 設定・投稿づくりのリンク行 */
+  .link-row{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-height:60px;padding:6px 0;border-top:1px solid var(--line-2);text-align:left}
+  .link-row:last-of-type{border-bottom:1px solid var(--line-2)}
+  .link-row b{font-size:15.5px;font-weight:500;display:block}
+  .link-row .d{font-size:12.5px;color:var(--muted);display:block}
+  .link-row .arr{flex:none;color:var(--muted)}
+  .feature-card{border:1px solid var(--hair);border-radius:4px;background:var(--surface-2);padding:22px;margin-top:16px}
+  .feature-card h3{margin:0 0 8px;font-family:var(--serif);font-weight:400;font-size:18.5px;letter-spacing:.04em}
+  .feature-card p{margin:0 0 16px;font-size:14px;line-height:1.95;color:var(--ink-2)}
+
+  /* 下部タブ */
+  .tabbar{position:fixed;left:0;right:0;bottom:0;z-index:30;display:flex;justify-content:center;background:var(--paper);border-top:1px solid var(--line)}
+  .tabbar .in{width:100%;max-width:560px;display:flex;padding:8px 6px calc(12px + env(safe-area-inset-bottom))}
+  .tabbar button{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12px;letter-spacing:.06em;color:var(--muted);padding:4px 0;min-height:56px;justify-content:center}
+  .tabbar button .ic{display:flex;align-items:center;justify-content:center;width:46px;height:30px;border-radius:15px}
+  .tabbar button.on{color:var(--accent-deep);font-weight:700}
+  .tabbar button.on .ic{background:var(--accent-soft)}
+
+  /* 認証ゲート */
+  #gate{max-width:420px;margin:0 auto;padding:60px 24px}
+  #gate h1{font-family:var(--serif);font-weight:400;font-size:22px;letter-spacing:.05em;margin:0 0 8px}
+  #gate p{font-size:13.5px;color:var(--muted);margin:0 0 24px}
+
+  #toast{position:fixed;left:50%;bottom:104px;transform:translateX(-50%) translateY(16px);background:var(--ink);color:#fff;font-size:13px;letter-spacing:.04em;padding:12px 22px;border-radius:4px;opacity:0;pointer-events:none;transition:.25s;z-index:99;white-space:nowrap;max-width:92vw}
+  #toast.show{opacity:1;transform:translateX(-50%)}
+  .fab{position:fixed;right:calc(50% - 280px + 22px);bottom:104px;z-index:20;width:58px;height:58px;border-radius:29px;background:var(--accent-deep);color:#fff;font-size:26px;font-weight:300;display:flex;align-items:center;justify-content:center;box-shadow:0 18px 40px -18px rgba(70,52,36,.6)}
+  @media(max-width:604px){.fab{right:20px}}
+</style>
+
+<div id="gate" hidden>
+  <h1>オーナーポータル</h1>
+  <p>お渡ししている管理リンクから開くか、サロンIDと設定キーを入力してください。</p>
+  <div class="field"><label>サロンID</label><input id="g-slug" autocomplete="off" placeholder="例：air-rich"></div>
+  <div class="field"><label>設定キー</label><input id="g-token" type="password" autocomplete="off"></div>
+  <button class="btn wide" onclick="gateSubmit()">開く</button>
+</div>
+
+<div class="app" id="app" hidden>
+
+  <!-- ============ 今日（ホーム） ============ -->
+  <section class="view active" id="v-today">
+    <div class="head"><span class="t">今日</span><span class="salon" id="d-salon"></span></div>
+    <div class="banner" id="d-banner"></div>
+    <div class="stats">
+      <button class="stat" onclick="openList('birthday')"><span class="k">今月のお誕生日</span><span class="v num" id="d-bd">–<small>名</small></span></button>
+      <button class="stat" onclick="openList('reserved')"><span class="k">今週のご予約</span><span class="v num" id="d-rsv">–<small>件</small></span></button>
+      <button class="stat" onclick="openList('follow')"><span class="k">フォロー候補</span><span class="v num" id="d-follow">–<small>名</small></span></button>
+      <button class="stat" onclick="openList('all')"><span class="k">顧客総数</span><span class="v num" id="d-total">–<small>名</small></span></button>
+    </div>
+
+    <p class="label">今日のご予約</p>
+    <div id="d-today-list"></div>
+
+    <p class="label">今週のご予約（7日以内）</p>
+    <div id="d-week-list"></div>
+
+    <p class="label" id="d-bd-label">今月のお誕生日</p>
+    <div id="d-bd-list"></div>
+
+    <p class="label">そろそろフォロー <span style="letter-spacing:0;text-transform:none" id="d-follow-note"></span></p>
+    <div id="d-follow-list"></div>
+
+    <p class="label">休眠のお客様 <span style="letter-spacing:0" id="d-dormant-note"></span></p>
+    <div id="d-dormant-list"></div>
+  </section>
+
+  <!-- ============ 顧客 ============ -->
+  <section class="view" id="v-list">
+    <div class="head"><span class="t">顧客</span><span class="salon" id="l-count"></span></div>
+    <div class="search"><input id="l-q" placeholder="お名前・かなで検索" autocomplete="off"></div>
+    <div class="chips" id="l-chips">
+      <button data-f="all" class="on">すべて</button>
+      <button data-f="birthday">今月誕生日</button>
+      <button data-f="reserved">予約あり</button>
+      <button data-f="unreserved">予約なし</button>
+      <button data-f="follow">フォロー候補</button>
+      <button data-f="dormant">休眠</button>
+    </div>
+    <div id="l-rows"></div>
+  </section>
+
+  <!-- ============ 顧客詳細・編集（顧客タブの子画面） ============ -->
+  <section class="view" id="v-edit">
+    <div class="head"><button class="back" onclick="backFromEdit()">←</button><span class="t" id="e-title">お客様</span></div>
+    <div style="padding-top:12px">
+      <div class="grid2">
+        <div class="field"><label>お名前 *</label><input id="e-name" autocomplete="off"></div>
+        <div class="field"><label>かな</label><input id="e-kana" autocomplete="off"></div>
+      </div>
+      <div class="grid3">
+        <div class="field"><label>誕生月</label><select id="e-bm"><option value="">—</option></select></div>
+        <div class="field"><label>誕生日</label><select id="e-bd"><option value="">—</option></select></div>
+        <div class="field"><label>生まれ年（任意）</label><input id="e-by" inputmode="numeric" placeholder="例:1985" autocomplete="off"></div>
+      </div>
+      <p class="hint" style="margin:-8px 0 16px">誕生日は月日だけでも登録できます。</p>
+      <div class="grid2">
+        <div class="field"><label>最終来店日</label><input id="e-lv" type="date"></div>
+        <div class="field"><label>来店回数</label><input id="e-vc" inputmode="numeric" autocomplete="off"></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>次回予約日</label><input id="e-rd" type="date"></div>
+        <div class="field"><label>時刻（任意）</label><input id="e-rt" type="time"></div>
+      </div>
+      <div class="field"><label>メモ</label><textarea id="e-note" placeholder="お好み・注意事項・会話の記録など"></textarea></div>
+
+      <button class="btn wide" onclick="saveCustomer()">保存する</button>
+      <div style="display:flex;gap:10px;margin-top:10px" id="e-actions">
+        <button class="btn ghost" style="flex:1" onclick="recordVisit()">来店を記録（今日・回数＋1）</button>
+        <button class="btn danger" onclick="deleteCustomer()">削除</button>
+      </div>
+      <p class="hint" id="e-meta" style="margin-top:14px"></p>
+    </div>
+  </section>
+
+  <!-- ============ 投稿づくり ============ -->
+  <section class="view" id="v-posts">
+    <div class="head"><span class="t">投稿づくり</span><span class="salon" id="p-salon"></span></div>
+    <div class="feature-card">
+      <h3>ネタ出し → 8種の下書き</h3>
+      <p>お題をひとつ渡すと、AIが投稿ネタを8個提案。選んだネタから、Instagram投稿・リール台本・LINE配信文・ブログ・メルマガ・ショート動画台本・キャプション・ハッシュタグを一括で下書きします。</p>
+      <a class="btn wide" id="p-factory-link" href="factory.html">✨ コンテンツファクトリーを開く</a>
+    </div>
+    <p class="hint" style="margin-top:14px">※ 投稿は必ず下書きで止まります。内容を確認して、ご自身のSNSアプリから投稿してください。</p>
+    <p class="label">今後の予定</p>
+    <p class="hint" style="margin-top:0">誕生日メッセージのAI文面づくり・休眠のお客様への再来店文面など、顧客データと連動した文面作成をここに追加予定です。</p>
+  </section>
+
+  <!-- ============ 設定 ============ -->
+  <section class="view" id="v-settings">
+    <div class="head"><span class="t">設定</span><span class="salon" id="s-salon"></span></div>
+
+    <p class="label">フォロー基準</p>
+    <div class="grid2">
+      <div class="field">
+        <label>フォロー候補（最終来店から）</label>
+        <select id="s-follow">
+          <option value="30">30日</option><option value="45">45日</option>
+          <option value="60">60日（おすすめ）</option><option value="90">90日</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>休眠のお客様</label>
+        <select id="s-dormant">
+          <option value="90">90日</option><option value="120">120日（おすすめ）</option>
+          <option value="150">150日</option><option value="180">180日</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn wide" onclick="saveSettings()">基準を保存する</button>
+
+    <p class="label">サロンのページ</p>
+    <a class="link-row" id="s-editor-link" href="editor.html"><span><b>サロン情報を編集する</b><span class="d">メニュー・料金・営業時間・写真・AIの受け答え</span></span><span class="arr">→</span></a>
+    <a class="link-row" id="s-page-link" href="./" target="_blank" rel="noopener"><span><b>お客様ページを見る</b><span class="d">いまお客様に見えている画面を確認</span></span><span class="arr">↗</span></a>
+    <a class="link-row" id="s-check-link" href="check.html" target="_blank" rel="noopener"><span><b>AI受付の接続診断</b><span class="d">AIが正しく答えているか6項目で検査</span></span><span class="arr">↗</span></a>
+
+    <p class="label">このポータル</p>
+    <button class="link-row" onclick="copyPortalLink()"><span><b>管理リンクをコピー</b><span class="d">この画面を開くためのリンク（合鍵）。他の人に渡さないでください</span></span><span class="arr">📋</span></button>
+
+    <p class="hint" style="margin-top:24px">今後、予約サービス連携・LINE連携・売上管理などの設定がここに追加されます。</p>
+  </section>
+
+</div>
+
+<!-- ============ 下部タブ ============ -->
+<nav class="tabbar" id="tabbar" hidden>
+  <div class="in">
+    <button data-v="v-today"><span class="ic"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.3"><polyline points="3,9 10,4 17,9"/><rect x="5" y="9" width="10" height="8"/></svg></span>今日</button>
+    <button data-v="v-list"><span class="ic"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="10" cy="6" r="2.6"/><rect x="3" y="12" width="14" height="5"/></svg></span>顧客</button>
+    <button data-v="v-posts"><span class="ic"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M13 3l4 4L7 17l-4 1 1-4z"/></svg></span>投稿づくり</button>
+    <button data-v="v-settings"><span class="ic"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="10" cy="10" r="2.6"/><path d="M10 3v2M10 15v2M3 10h2M15 10h2M5 5l1.4 1.4M13.6 13.6L15 15M15 5l-1.4 1.4M6.4 13.6L5 15"/></svg></span>設定</button>
+  </div>
+</nav>
+
+<button class="fab" id="fab" hidden onclick="openNew()" aria-label="お客様を追加">＋</button>
+<div id="toast" role="status"></div>
+
+<script src="salon-config.js"></script>
+<script>
+/* =========================================================
+   オーナーポータル（全テナント標準）
+   ・入口は管理リンク（?s=サロンID&k=設定キー）1本
+   ・タブ構成は下部tabbar。将来の機能追加は「ビューを1つ書いて
+     tabbarに1ボタン足す」か「鍵を引き継いで外部ページへリンク」
+   ・顧客データはWorkerの /crm 経由のみ（お客様向けAIと完全分離）
+   ========================================================= */
+const BASE = ((window.SALON_CONFIG && window.SALON_CONFIG.ai && window.SALON_CONFIG.ai.endpoint) || '').replace(/\/$/, '');
+const qs = new URLSearchParams(location.search);
+let SLUG = (qs.get('s') || '').toLowerCase();
+let KEY = qs.get('k') || '';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+
+function localToday(){
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+async function api(action, extra){
+  const res = await fetch(BASE + '/crm', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(Object.assign({ action, slug: SLUG, token: KEY, today: localToday() }, extra || {})),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 401) { authFail(); throw new Error('unauthorized'); }
+  if (!res.ok) throw new Error(data.error || res.status);
+  return data;
+}
+
+function toast(m){const t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),2400);}
+
+/* 画面切替：v-edit は「顧客」タブの子画面としてタブ表示を維持する */
+function show(id){
+  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id===id));
+  const tabId = id === 'v-edit' ? 'v-list' : id;
+  document.querySelectorAll('#tabbar button').forEach(b=>b.classList.toggle('on',b.dataset.v===tabId));
+  window.scrollTo(0,0);
+  $('fab').hidden = (id !== 'v-list');
+}
+document.querySelectorAll('#tabbar button').forEach(b=>{
+  b.addEventListener('click',()=>{
+    const v=b.dataset.v;
+    show(v);
+    if(v==='v-today') loadToday();
+    if(v==='v-list') loadList();
+    if(v==='v-settings') loadSettings();
+  });
+});
+
+function authFail(){
+  $('app').hidden = true; $('fab').hidden = true; $('tabbar').hidden = true; $('gate').hidden = false;
+  toast('リンクが無効です。サロンIDと設定キーをご確認ください');
+}
+function gateSubmit(){
+  SLUG = $('g-slug').value.trim().toLowerCase();
+  KEY = $('g-token').value.trim();
+  if (!SLUG || !KEY) { toast('サロンIDと設定キーを入力してください'); return; }
+  boot();
+}
+
+/* ---------- 共通の行表示 ---------- */
+const fmtMD = c => (c.birthday_month && c.birthday_day) ? c.birthday_month + '/' + String(c.birthday_day).padStart(2,'0') : '—';
+const fmtDate = s => s ? s.replace(/-/g, '/') : '—';
+function rowHtml(c, right){
+  const tag = c.segment === 'follow' ? '<span class="tagchip follow">フォロー</span>'
+            : c.segment === 'dormant' ? '<span class="tagchip dormant">休眠</span>' : '';
+  return '<button class="row" onclick="openEdit(' + c.id + ')"><span><b>' + esc(c.name) + tag + '</b>' +
+    '<span class="d">' + (c.last_visit_date ? '最終来店 ' + fmtDate(c.last_visit_date) + '（' + c.daysSince + '日経過）' : '来店記録なし') + '</span></span>' +
+    '<span class="r">' + right + '</span></button>';
+}
+/* 一覧を最大n件で切り、残りは「すべて見る」で顧客タブへ */
+function rowsCapped(list, n, render, filter){
+  if (!list.length) return null;
+  let html = list.slice(0, n).map(render).join('');
+  if (list.length > n) html += '<button class="more" onclick="openList(\'' + filter + '\')">すべて見る（' + list.length + '名）→</button>';
+  return html;
+}
+
+/* ---------- 今日（ホーム） ---------- */
+async function loadToday(){
+  const d = await api('dashboard');
+  $('d-bd').innerHTML = d.birthdays.length + '<small>名</small>';
+  $('d-rsv').innerHTML = d.reservationsWeek.length + '<small>件</small>';
+  $('d-follow').innerHTML = d.follow.length + '<small>名</small>';
+  $('d-total').innerHTML = d.total + '<small>名</small>';
+  const month = Number(d.today.slice(5,7));
+  $('d-bd-label').textContent = month + '月のお誕生日';
+  $('d-follow-note').textContent = '（最終来店から' + d.settings.followDays + '日以上・予約なし）';
+  $('d-dormant-note').textContent = '（' + d.settings.dormantDays + '日以上）';
+
+  const rsvRight = c => '<b class="num">' + fmtDate(c.next_reservation_date) + '</b><span class="sub">' + (c.next_reservation_time || '') + '</span>';
+  $('d-today-list').innerHTML = d.reservationsToday.length
+    ? d.reservationsToday.map(c => rowHtml(c, rsvRight(c))).join('')
+    : '<p class="empty">今日のご予約はありません</p>';
+  $('d-week-list').innerHTML = rowsCapped(d.reservationsWeek, 5, c => rowHtml(c, rsvRight(c)), 'reserved')
+    || '<p class="empty">7日以内のご予約はありません</p>';
+  $('d-bd-list').innerHTML = rowsCapped(d.birthdays, 5, c => rowHtml(c, '<b class="num">' + fmtMD(c) + '</b>'), 'birthday')
+    || '<p class="empty">今月お誕生日のお客様はいません</p>';
+  $('d-follow-list').innerHTML = rowsCapped(d.follow, 5, c => rowHtml(c, '<b class="num">' + c.daysSince + '日</b><span class="sub">予約なし</span>'), 'follow')
+    || '<p class="empty">フォロー候補はいません</p>';
+  $('d-dormant-list').innerHTML = rowsCapped(d.dormant, 3, c => rowHtml(c, '<b class="num">' + c.daysSince + '日</b><span class="sub">予約なし</span>'), 'dormant')
+    || '<p class="empty">休眠のお客様はいません</p>';
+
+  /* 月初リマインド（月に1回だけ・端末内で記憶。crm.html時代のキーを引き継ぐ） */
+  const ym = d.today.slice(0,7);
+  const seenKey = 'crm.' + SLUG + '.birthdayNotice';
+  const b = $('d-banner');
+  if (d.birthdays.length && localStorage.getItem(seenKey) !== ym) {
+    b.innerHTML = '<button onclick="this.parentElement.style.display=\'none\'">閉じる</button>' +
+      '🎂 今月は <b>' + d.birthdays.length + '名</b> のお客様がお誕生日です';
+    b.style.display = 'block';
+    localStorage.setItem(seenKey, ym);
+  } else {
+    b.style.display = 'none';
+  }
+}
+
+/* ---------- 顧客一覧 ---------- */
+let FILTER = 'all';
+async function loadList(){
+  const d = await api('list', { filter: FILTER === 'all' ? undefined : FILTER, q: $('l-q').value.trim() || undefined });
+  $('l-count').textContent = d.customers.length + '名';
+  $('l-rows').innerHTML = d.customers.length
+    ? d.customers.map(c => rowHtml(c,
+        '<b class="num">' + (c.hasReservation ? '予約 ' + fmtDate(c.next_reservation_date) : '予約なし') + '</b>' +
+        '<span class="sub num">誕生日 ' + fmtMD(c) + '　来店' + c.visit_count + '回</span>')).join('')
+    : '<p class="empty">該当するお客様はいません</p>';
+}
+function openList(f){
+  FILTER = f || 'all';
+  document.querySelectorAll('#l-chips button').forEach(b => b.classList.toggle('on', b.dataset.f === FILTER));
+  $('l-q').value = '';
+  show('v-list');
+  loadList();
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('#l-chips button');
+  if (b) { FILTER = b.dataset.f; document.querySelectorAll('#l-chips button').forEach(x => x.classList.toggle('on', x === b)); loadList(); }
+});
+let qTimer = null;
+document.addEventListener('input', e => {
+  if (e.target.id === 'l-q') { clearTimeout(qTimer); qTimer = setTimeout(loadList, 350); }
+});
+
+/* ---------- 顧客詳細・編集 ---------- */
+let EDIT_ID = null;
+let EDIT_FROM = 'v-list';   /* 「今日」から開いたら「今日」へ戻る */
+(function initSelects(){
+  for (let m = 1; m <= 12; m++) $('e-bm').insertAdjacentHTML('beforeend', '<option value="' + m + '">' + m + '月</option>');
+  for (let d = 1; d <= 31; d++) $('e-bd').insertAdjacentHTML('beforeend', '<option value="' + d + '">' + d + '日</option>');
+})();
+function fillEdit(c){
+  $('e-title').textContent = c ? c.name : '新しいお客様';
+  $('e-name').value = c ? c.name : '';
+  $('e-kana').value = c && c.kana || '';
+  $('e-bm').value = c && c.birthday_month || '';
+  $('e-bd').value = c && c.birthday_day || '';
+  $('e-by').value = c && c.birthday_year || '';
+  $('e-lv').value = c && c.last_visit_date || '';
+  $('e-vc').value = c ? c.visit_count : 0;
+  $('e-rd').value = c && c.next_reservation_date || '';
+  $('e-rt').value = c && c.next_reservation_time || '';
+  $('e-note').value = c && c.note || '';
+  $('e-actions').style.display = c ? 'flex' : 'none';
+  $('e-meta').textContent = c && c.daysSince != null ? '最終来店から' + c.daysSince + '日' : '';
+}
+async function openEdit(id){
+  const cur = document.querySelector('.view.active');
+  EDIT_FROM = cur && cur.id !== 'v-edit' ? cur.id : 'v-list';
+  const d = await api('get', { id });
+  EDIT_ID = id;
+  fillEdit(d.customer);
+  show('v-edit');
+}
+function openNew(){ EDIT_ID = null; EDIT_FROM = 'v-list'; fillEdit(null); show('v-edit'); }
+function backFromEdit(){
+  show(EDIT_FROM);
+  if (EDIT_FROM === 'v-today') loadToday(); else { show('v-list'); loadList(); }
+}
+async function saveCustomer(){
+  const c = {
+    id: EDIT_ID || undefined,
+    name: $('e-name').value, kana: $('e-kana').value,
+    birthday_month: $('e-bm').value || null, birthday_day: $('e-bd').value || null, birthday_year: $('e-by').value || null,
+    last_visit_date: $('e-lv').value || null, visit_count: $('e-vc').value,
+    next_reservation_date: $('e-rd').value || null, next_reservation_time: $('e-rt').value || null,
+    note: $('e-note').value,
+  };
+  if (!c.name.trim()) { toast('お名前を入力してください'); return; }
+  try {
+    const r = await api('upsert', { customer: c });
+    EDIT_ID = r.id || EDIT_ID;
+    toast('保存しました');
+    backFromEdit();
+  } catch (e) { toast('保存できませんでした'); }
+}
+async function recordVisit(){
+  if (!EDIT_ID) return;
+  if (!confirm('最終来店日を今日にして、来店回数を1回増やします。よろしいですか？')) return;
+  await api('visit', { id: EDIT_ID });
+  toast('来店を記録しました');
+  openEdit(EDIT_ID);
+}
+async function deleteCustomer(){
+  if (!EDIT_ID) return;
+  if (!confirm('このお客様を削除します。よろしいですか？（データは復元可能な形で保管されます）')) return;
+  await api('delete', { id: EDIT_ID });
+  toast('削除しました');
+  backFromEdit();
+}
+
+/* ---------- 設定 ---------- */
+async function loadSettings(){
+  const d = await api('settings');
+  $('s-follow').value = d.settings.followDays;
+  $('s-dormant').value = d.settings.dormantDays;
+}
+async function saveSettings(){
+  const d = await api('settings', { followDays: Number($('s-follow').value), dormantDays: Number($('s-dormant').value) });
+  $('s-follow').value = d.settings.followDays;
+  $('s-dormant').value = d.settings.dormantDays;
+  toast('保存しました');
+}
+async function copyPortalLink(){
+  const url = location.origin + location.pathname + '?s=' + encodeURIComponent(SLUG) + '&k=' + encodeURIComponent(KEY);
+  try { await navigator.clipboard.writeText(url); toast('管理リンクをコピーしました'); }
+  catch(e){ prompt('このリンクをコピーしてください', url); }
+}
+
+/* ---------- 起動 ---------- */
+function wireLinks(){
+  /* 鍵の引き継ぎ：ポータルから開く各ツールに同じ設定キーを渡す */
+  const kq = '?s=' + encodeURIComponent(SLUG) + '&k=' + encodeURIComponent(KEY);
+  $('p-factory-link').href = 'factory.html' + kq;
+  $('s-editor-link').href = 'editor.html' + kq;
+  $('s-page-link').href = './?s=' + encodeURIComponent(SLUG);
+  $('s-check-link').href = 'check.html?s=' + encodeURIComponent(SLUG);
+}
+async function boot(){
+  if (!BASE) { document.body.innerHTML = '<p style="padding:40px 24px">設定エラー：接続先が見つかりません。</p>'; return; }
+  try {
+    await api('settings');   /* 認証確認 */
+    $('gate').hidden = true;
+    $('app').hidden = false;
+    $('tabbar').hidden = false;
+    $('d-salon').textContent = SLUG;
+    $('p-salon').textContent = SLUG;
+    $('s-salon').textContent = SLUG;
+    wireLinks();
+    show('v-today');
+    await loadToday();
+    loadSettings();
+  } catch (e) { /* authFail 済み */ }
+}
+if (SLUG && KEY) boot(); else { $('gate').hidden = false; }
+</script>

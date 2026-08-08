@@ -16,8 +16,8 @@
 | 用途 | URL |
 |---|---|
 | お客様ページ | `https://…github.io/salon-AI-OS/?s=サロンID` |
-| 設定リンク（オーナー用） | `https://…github.io/salon-AI-OS/editor.html?s=サロンID&k=設定キー` |
-| 接続診断 | `https://…github.io/salon-AI-OS/check.html?s=サロンID` |
+| **管理リンク（オーナーに渡すのはこれ1本）** | `https://…github.io/salon-AI-OS/owner.html?s=サロンID&k=設定キー` |
+| （ポータル内から到達可能）設定エディタ | `editor.html?s=…&k=…` ／ 診断 `check.html?s=…` ／ ファクトリー `factory.html?s=…&k=…` |
 
 - **サロンID（slug）**：半角小文字英数とハイフン、40文字まで（例 `hanako-salon`）
 - **設定キー（setup_token）**：サロン追加時に自動発行。管理APIの `get` で確認できる
