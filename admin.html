@@ -82,7 +82,7 @@
   .feed b{font-size:13.5px;display:block}
   .feed p{margin:2px 0 0;font-size:12.5px;color:var(--muted)}
   .feed time{font-size:10.5px;color:var(--muted);white-space:nowrap;margin-left:auto}
-  .dept-card{display:flex;align-items:center;gap:14px;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:10px}
+  .dept-card{display:flex;align-items:center;gap:14px;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:10px;color:inherit;text-decoration:none;font-family:inherit;font-size:inherit;cursor:pointer}
   .dept-card .ic{width:44px;height:44px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:21px;flex:none}
   .dept-card b{display:block;font-size:14.5px}
   .dept-card span{font-size:12px;color:var(--muted)}
@@ -188,8 +188,15 @@
         <button class="dept-card" onclick="goA('a-crm')"><span class="ic" style="background:var(--sage-soft)">🗂</span><span><b>AI秘書（顧客管理）</b><span>カルテ・来店履歴・フォロー提案</span></span><span class="arrow">›</span></button>
         <button class="dept-card" onclick="goA('a-edu')"><span class="ic" style="background:var(--rose-soft)">🎓</span><span><b>AI教育担当</b><span>マニュアル・研修・理解度チェック</span></span><span class="arrow">›</span></button>
         <button class="dept-card" onclick="goA('a-analytics')"><span class="ic" style="background:var(--accent-soft)">📊</span><span><b>分析レポート</b><span>相談傾向・導線・投稿の成果</span></span><span class="arrow">›</span></button>
-        <p style="font-size:11.5px;color:var(--muted);margin:10px 2px 0">🛎 AI受付・🌸 AIカウンセラーは<a href="./" style="color:var(--accent-deep)">お客様ページ</a>で24時間稼働中。応対内容は「ナレッジ」から変えられます。</p>
+        <p style="font-size:11.5px;color:var(--muted);margin:10px 2px 0">🛎 AI受付・🌸 AIカウンセラーはお客様ページで24時間稼働中。応対内容は「ナレッジ」から変えられます。</p>
+
+        <h2 class="sec-h">ツールを開く</h2>
+        <a class="dept-card" href="./" target="_blank" rel="noopener"><span class="ic" style="background:var(--accent-soft)">🌸</span><span><b>お客様ページを見る</b><span>お客様に見えている画面を確認する</span></span><span class="arrow">↗</span></a>
+        <a class="dept-card" href="editor.html" target="_blank" rel="noopener"><span class="ic" style="background:var(--sage-soft)">⚙️</span><span><b>設定エディタ</b><span>サロン情報を書き換える・別業種で作る</span></span><span class="arrow">↗</span></a>
+        <a class="dept-card" href="factory.html" target="_blank" rel="noopener"><span class="ic" style="background:var(--gold-soft)">🏭</span><span><b>AIコンテンツファクトリー</b><span>テーマ1つでSNS・販促コンテンツを一括生成</span></span><span class="arrow">↗</span></a>
+
         <p style="font-size:11px;color:var(--muted);margin:14px 2px 0">※ 数字・カルテはすべて架空のサンプルです（Phase 2で実データに接続）。</p>
+        <p style="font-size:11px;color:var(--muted);margin:8px 2px 0">💡 このページをホーム画面に追加しておくと、次回から1タップで開けます。</p>
       </section>
 
       <!-- ナレッジ -->
