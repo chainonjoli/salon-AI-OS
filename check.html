@@ -36,8 +36,8 @@
 </style>
 
 <div class="wrap">
-  <h1>AI受付 接続診断</h1>
-  <p class="lead">Cloudflare WorkerのURLを入れて開始すると、本番と同じ経路でAI受付を検査します。<br>AIへの質問4件ぶんの料金（数円程度）がかかります。</p>
+  <h1>AI受付 接続診断<span id="slug-label" style="font-size:14px;color:var(--muted)"></span></h1>
+  <p class="lead">Cloudflare WorkerのURLを入れて開始すると、本番と同じ経路でAI受付を検査します。<br>AIへの質問数件ぶんの料金（数円程度）がかかります。<br>URL末尾に <b>?s=サロンID</b> を付けると、そのサロンとして検査します。</p>
 
   <label for="ep">WorkerのURL（https://〜.workers.dev）</label>
   <input id="ep" type="url" placeholder="https://salon-ai-os.○○○.workers.dev" autocomplete="off">
@@ -48,13 +48,15 @@
   <div id="summary"></div>
 </div>
 
+<script src="salon-config.js"></script>
 <script>
 /* ==========================================================
    AI受付の受け入れ検査。
-   期待値（価格・営業時間・NGワード）は chainonjoli の
-   ナレッジに合わせている。別サロンで使う場合は TESTS を差し替える。
+   既定は chainonjoli 固有の期待値。?s=サロンID を付けると
+   そのテナントの設定を取得し、期待値を動的に組み立てる。
    ========================================================== */
 const NG_WORDS = ['治る','治り','治す','完治','消える','医学的に','絶対','激安'];
+const SLUG = ((new URLSearchParams(location.search)).get('s') || '').toLowerCase();
 
 const TESTS = [
   { id:'ping', label:'① 接続とAPIキーの確認', ping:true },
@@ -105,12 +107,55 @@ async function post(ep, body){
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 40000);
   try{
+    if (SLUG && body.dept === 'reception') body.salon = SLUG;
     const res = await fetch(ep, { method:'POST', headers:{'content-type':'application/json'},
       body: JSON.stringify(body), signal: ctrl.signal });
     const data = await res.json().catch(() => ({}));
     return { status: res.status, data };
   } finally { clearTimeout(timer); }
 }
+
+/* テナント設定から期待値を動的に組み立てる（?s= 指定時） */
+function buildTenantTests(cfg){
+  const prices = [];
+  ((cfg.menu && cfg.menu.sections) || []).forEach(s => (s.items || []).forEach(m => {
+    const d = String(m.price || '').replace(/[^0-9]/g, '');
+    if (d) prices.push(d);
+  }));
+  const hoursRow = ((cfg.access && cfg.access.rows) || []).find(r => /営業時間/.test(r[0]));
+  const times = (hoursRow ? String(hoursRow[1]) : '').match(/\d{1,2}:\d{2}/g) || [];
+  return [
+    TESTS[0],
+    { id:'hours', label:'② 営業時間を正しく答えるか', q:'営業時間を教えてください',
+      judge: r => !times.length ? ['warn','設定に営業時間の時刻が見つからないため、目で確認してください']
+        : (times.some(t => r.includes(t)) ? ['ok','設定どおりの時刻（'+times.join('〜')+'）に触れています']
+                                          : ['warn','設定の時刻（'+times.join('・')+'）が見えません。目で確認してください']) },
+    { id:'price', label:'③ 料金を創作せず正しく答えるか', q:'メニューの料金を教えてください',
+      judge: r => {
+        const t = r.replace(/[,，]/g,'');
+        if (!prices.some(p => t.includes(p))) return ['warn','設定の価格が見えません。目で確認してください'];
+        const fake = t.match(/\d{4,5}円?/g)?.some(n => !prices.includes(n.replace(/[^0-9]/g,'')));
+        return fake ? ['warn','設定にない金額が混ざっていないか、目で確認してください']
+                    : ['ok','登録済みの価格だけを案内しています'];
+      } },
+    TESTS[3],
+    { id:'unknown', label:'⑤ 知らないことを創作しないか', q:'英語での対応はできますか？',
+      judge: TESTS[4].judge },
+    { id:'isolate', label:'⑥ 他サロンの情報が混ざらないか',
+      q:'フェイシャルエステ（ビジター）8,800円のコースはありますか？',
+      judge: r => {
+        const t = r.replace(/[,，]/g,'');
+        if (/8800円?(です|になります|でご用意|がございます)/.test(t)) return ['bad','別サロン（chainonjoli）の価格を肯定してしまいました'];
+        return ['ok','他サロンの価格を肯定していません（回答文もご一読ください）'];
+      } },
+  ];
+}
+
+/* WorkerのURLは同梱設定から自動入力（変更も可能） */
+if (window.SALON_CONFIG && window.SALON_CONFIG.ai && window.SALON_CONFIG.ai.endpoint){
+  document.getElementById('ep').value = window.SALON_CONFIG.ai.endpoint;
+}
+if (SLUG) document.getElementById('slug-label').textContent = '｜' + SLUG;
 
 async function run(){
   const ep = $('ep').value.trim().replace(/\/$/, '');
@@ -119,7 +164,25 @@ async function run(){
   $('tests').innerHTML = ''; $('summary').className = '';
   const results = [];
 
-  for (const t of TESTS){
+  let tests = TESTS;
+  if (SLUG){
+    try{
+      const res = await fetch(ep + '/config?s=' + encodeURIComponent(SLUG));
+      if (!res.ok) throw new Error(res.status);
+      const cfg = await res.json();
+      $('slug-label').textContent = '｜' + (cfg.brand && cfg.brand.name || SLUG);
+      tests = buildTenantTests(cfg);
+    }catch(e){
+      const d = card({ id:'cfg', label:'⓪ サロン設定の取得' });
+      setResult(d, 'bad', 'サロン「' + SLUG + '」の設定を取得できませんでした。登録済みか・停止中でないかを確認してください');
+      $('summary').className = 'bad';
+      $('summary').innerHTML = '<b>サロンが見つかりません</b><br>この画面をスクリーンショットして、開発チャットに貼ってください。';
+      $('start').disabled = false;
+      return;
+    }
+  }
+
+  for (const t of tests){
     const d = card(t);
     try{
       if (t.ping){

@@ -137,6 +137,19 @@
       <button class="btn ghost" style="padding:9px 16px" onclick="loadPreset()">この業種で始める</button>
     </div>
 
+    <div class="intro" id="server-panel">
+      <b style="color:var(--ink);font-size:13px">🔗 あなたのサロンとして保存（設定リンクをお持ちの方）</b>
+      <p style="margin:8px 0 10px;font-size:12px">お渡しした設定リンクから開くと、下の欄は自動で入ります。編集が終わったら「サーバーへ保存」を押してください。<b>お客様ページとAIの回答に、1分以内に反映されます。</b></p>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+        <input type="text" id="f-srv-slug" placeholder="サロンID" autocomplete="off"
+               style="flex:1;min-width:110px;border:1px solid var(--line);border-radius:10px;padding:9px 12px;background:var(--paper);font-size:13px">
+        <input type="password" id="f-srv-token" placeholder="設定キー" autocomplete="off"
+               style="flex:2;min-width:150px;border:1px solid var(--line);border-radius:10px;padding:9px 12px;background:var(--paper);font-size:13px">
+        <button class="btn ghost" style="padding:9px 16px" onclick="serverLoad()">読み込み</button>
+        <button class="btn accent" style="padding:9px 16px" onclick="serverSave()">サーバーへ保存</button>
+      </div>
+    </div>
+
     <details class="sec" open>
       <summary><span class="ic">🏠</span><span><b>基本情報</b><span class="d">サロン名・キャッチコピー</span></span><span class="chev">›</span></summary>
       <div class="sec-body">
@@ -541,11 +554,52 @@ function loadPreset(){
   window.scrollTo(0, 0);
 }
 
+/* ---------- サーバー保存（購入者のセルフ設定） ----------
+   認証はサロンごとの設定キー（setup_token）。他のサロンには触れない。
+   接続先は同梱設定の ai.endpoint（全サロン共通のWorker） */
+const SERVER_BASE=((window.SALON_CONFIG&&window.SALON_CONFIG.ai&&window.SALON_CONFIG.ai.endpoint)||'').replace(/\/$/,'');
+async function serverLoad(){
+  const slug=$('f-srv-slug').value.trim().toLowerCase();
+  if(!SERVER_BASE||!slug){toast('サロンIDを入れてください');return;}
+  try{
+    const res=await fetch(SERVER_BASE+'/config?s='+encodeURIComponent(slug));
+    if(!res.ok) throw new Error(res.status);
+    const cfg=await res.json();
+    delete cfg.tenant; delete cfg.ai;
+    base=cfg; fill(cfg); onChange();
+    toast('「'+(cfg.brand&&cfg.brand.name||slug)+'」の設定を読み込みました');
+  }catch(e){toast('読み込めませんでした。サロンIDをご確認ください');}
+}
+async function serverSave(){
+  const slug=$('f-srv-slug').value.trim().toLowerCase();
+  const token=$('f-srv-token').value.trim();
+  if(!SERVER_BASE||!slug||!token){toast('サロンIDと設定キーを入れてください');return;}
+  try{
+    const res=await fetch(SERVER_BASE+'/setup',{
+      method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({slug,token,config:collect()})
+    });
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.error||res.status);
+    toast('保存しました。お客様ページとAIに反映されます 🔄');
+  }catch(e){
+    toast(String(e.message)==='unauthorized'?'設定キーが違います':'保存できませんでした。時間をおいてお試しください');
+  }
+}
+
 /* ---------- 起動 ---------- */
 (function init(){
+  /* 設定リンク（editor.html?s=サロンID&k=設定キー）で開いた場合は
+     そのサロンの設定を読み込む。下書き復元より優先 */
+  const qs=new URLSearchParams(location.search);
+  const linkSlug=(qs.get('s')||'').toLowerCase(), linkKey=qs.get('k')||'';
+  if(linkSlug)$('f-srv-slug').value=linkSlug;
+  if(linkKey)$('f-srv-token').value=linkKey;
+
   let draft=null;
   try{draft=JSON.parse(localStorage.getItem(DRAFT_KEY));}catch(e){}
-  if(draft&&draft.brand){$('draft-note').style.display='block';fill(draft);base=JSON.parse(JSON.stringify(window.SALON_CONFIG));}
+  if(linkSlug){fill(base);serverLoad();}
+  else if(draft&&draft.brand){$('draft-note').style.display='block';fill(draft);base=JSON.parse(JSON.stringify(window.SALON_CONFIG));}
   else fill(base);
   document.querySelector('header .mark').textContent=$('f-mark').value||'凛';
   /* エンジンの読み込み：ビルド版は埋め込みsrcdoc、ローカルは index.html */

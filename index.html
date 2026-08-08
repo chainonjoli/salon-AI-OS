@@ -267,6 +267,11 @@
    ========================================================= */
 let C = window.SALON_CONFIG;
 
+/* ---- マルチテナント：?s=サロンID ----
+   指定があればWorkerからそのサロンの設定を取得して着せ替える。
+   無指定なら従来どおり同梱の salon-config.js（chainonjoli）で動く */
+const TENANT = ((new URLSearchParams(location.search)).get('s') || '').toLowerCase();
+
 /* ============ 設定の流し込み ============ */
 function hydrate(){
   const r = document.documentElement.style;
@@ -310,7 +315,7 @@ function hydrate(){
   $('reserve-tel-note').textContent = C.contact.telNote;
   $('reserve-disclaimer').textContent = C.reserve.disclaimer;
 }
-hydrate();
+if (!TENANT) hydrate();   /* テナント指定時は設定取得後に流し込む（スクリプト末尾） */
 
 /* ============ 連絡先アクション ============ */
 function goLine(){toast('LINEを開いています…');window.open(C.contact.lineUrl,'_blank');}
@@ -327,7 +332,8 @@ function goC(id,keepHash){
   /* URLを画面に合わせる（共有・ブックマーク用。履歴は増やさない） */
   if(!keepHash){
     const h = Object.keys(HASH_MAP).find(k=>HASH_MAP[k]===id);
-    if(h) history.replaceState(null,'', h==='home' ? location.pathname : '#'+h);
+    /* ?s=（テナント指定）を消さないよう、検索部分は常に維持する */
+    if(h) history.replaceState(null,'', h==='home' ? location.pathname+location.search : location.search+'#'+h);
   }
 }
 document.getElementById('c-tab').addEventListener('click',e=>{const b=e.target.closest('button');if(b)goC(b.dataset.s);});
@@ -395,7 +401,7 @@ async function sendToAI(text){
     const res=await fetch(C.ai.endpoint,{
       method:'POST',
       headers:{'content-type':'application/json'},
-      body:JSON.stringify({dept:'reception',messages:chatHistory.slice(-12)})
+      body:JSON.stringify({dept:'reception',salon:TENANT||undefined,messages:chatHistory.slice(-12)})
     });
     if(!res.ok) throw new Error('http '+res.status);
     const data=await res.json();
@@ -486,7 +492,32 @@ window.addEventListener('message',e=>{
   if(active && active.id==='c-counsel') resetCounsel();
 });
 
+/* ============ テナント設定の取得（?s= 指定時のみ） ============ */
+async function loadTenantConfig(){
+  try{
+    const base = (window.SALON_CONFIG.ai && window.SALON_CONFIG.ai.endpoint || '').replace(/\/$/,'');
+    if(!base) throw new Error('no endpoint');
+    const res = await fetch(base + '/config?s=' + encodeURIComponent(TENANT));
+    if(!res.ok) throw new Error('http ' + res.status);
+    C = await res.json();
+    hydrate();
+    applyHash();
+  }catch(e){
+    /* 未登録・停止中・通信不能。他サロン（同梱設定）を出すのは誤りなので専用画面に */
+    showUnavailable();
+  }
+}
+function showUnavailable(){
+  document.body.innerHTML =
+    '<div style="max-width:420px;margin:18vh auto 0;padding:0 28px;text-align:center;font-family:inherit">' +
+    '<p style="font-size:40px;margin:0 0 14px">🌿</p>' +
+    '<p style="font-weight:600;font-size:16px;margin:0 0 8px">このページは現在ご利用いただけません</p>' +
+    '<p style="font-size:13px;color:#8B8378;line-height:1.9;margin:0 0 22px">アドレスをご確認のうえ、時間をおいてもう一度お試しください。</p>' +
+    '<button onclick="location.reload()" style="padding:13px 30px;border:1px solid #E8E3DC;border-radius:999px;background:#fff;font-family:inherit;font-size:14px;cursor:pointer">再読み込み</button>' +
+    '</div>';
+}
+
 /* ============ 起動 ============
    すべての定義が済んだ最後にハッシュを適用する */
-applyHash();
+if (TENANT) loadTenantConfig(); else applyHash();
 </script>
