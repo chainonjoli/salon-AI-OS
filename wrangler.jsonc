@@ -1,0 +1,39 @@
+/* =========================================================
+   Cloudflare Workers 設定ファイル
+   ---------------------------------------------------------
+   CloudflareのGit連携がこのファイルを読み、
+   server/worker.js をWorker本体としてデプロイします。
+
+   ここに書いてよいのは「秘密でない設定」だけです。
+   APIキー（GEMINI_API_KEY / ANTHROPIC_API_KEY）は絶対に書かず、
+   Cloudflareダッシュボードの Secret として登録してください。
+   （設定 → 変数とシークレット → 「シークレット」を選択）
+   ========================================================= */
+{
+  "name": "salon-ai-os",
+  "main": "server/worker.js",
+  "compatibility_date": "2026-08-08",
+
+  /* ダッシュボード側で手入力した変数・Secretを
+     デプロイのたびに消さないための保険 */
+  "keep_vars": true,
+
+  /* 秘密でない運用設定。値を変えたらpushすれば反映される */
+  "vars": {
+    /* 使うAI。'gemini' か 'claude' */
+    "PROVIDER": "gemini",
+
+    /* Geminiのモデル。受付はWorker側で thinkingLevel:'low' を
+       指定して思考トークン（＝コスト）を抑えている */
+    "GEMINI_MODEL": "gemini-3.6-flash",
+
+    /* このサイトからの呼び出しだけを受け付ける（他サイトからの無断利用を防ぐ） */
+    "ALLOWED_ORIGIN": "https://chainonjoli.github.io",
+
+    /* 使いすぎ防止。同一IP 1分あたり／全体 1日あたりの回数上限。
+       1日60回 ≒ 月1,000〜2,000円で頭打ちになる設定。
+       Googleの予算アラートは通知のみのため、実際に止める役はここ */
+    "RATE_PER_MIN": "5",
+    "RATE_PER_DAY": "60"
+  }
+}
