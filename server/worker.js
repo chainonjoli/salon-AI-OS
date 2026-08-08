@@ -215,6 +215,237 @@ async function recordUsage(env, tenant, usage) {
   }
 }
 
+/* ---------- 共通：設定キー（setup_token）によるテナント認証 ----------
+   一致したテナントの行を返す。以降のSQLは必ずこの id を WHERE に使うこと */
+async function authTenant(env, slugRaw, token) {
+  if (!env.DB) return null;
+  const slug = String(slugRaw || '').toLowerCase();
+  if (!SLUG_RE.test(slug) || String(token || '').length < 16) return null;
+  const row = await env.DB.prepare(
+    'SELECT id, slug, status, setup_token FROM tenants WHERE slug = ?1 AND deleted_at IS NULL'
+  ).bind(slug).first();
+  if (!row || !row.setup_token || row.setup_token !== String(token)) return null;
+  return row;
+}
+
+/* =========================================================
+   顧客フォロー管理（CRM）
+   ---------------------------------------------------------
+   オーナー専用の管理API（crm.html が使う）。全テナント標準搭載。
+   ・認証は設定キー（setup_token）。tenant_id で完全分離
+   ・お客様向けAI（buildSystem / configToKnowledge）からは
+     一切参照しない＝顧客情報がAIに渡る経路が存在しない
+   ・テーブルは初回アクセス時に自動作成（手動SQL不要）
+   ========================================================= */
+let crmReady = false;
+async function ensureCrmTables(env) {
+  if (crmReady) return;
+  const ddl = [
+    `CREATE TABLE IF NOT EXISTS customers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tenant_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      kana TEXT,
+      birthday_month INTEGER,
+      birthday_day INTEGER,
+      birthday_year INTEGER,
+      last_visit_date TEXT,
+      next_reservation_date TEXT,
+      next_reservation_time TEXT,
+      visit_count INTEGER NOT NULL DEFAULT 0,
+      note TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      deleted_at TEXT
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_customers_tenant ON customers (tenant_id, deleted_at)`,
+    `CREATE INDEX IF NOT EXISTS idx_customers_birthday ON customers (tenant_id, birthday_month, birthday_day)`,
+    `CREATE TABLE IF NOT EXISTS tenant_settings (
+      tenant_id INTEGER NOT NULL,
+      key TEXT NOT NULL,
+      value TEXT NOT NULL,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (tenant_id, key)
+    )`,
+  ];
+  for (const sql of ddl) await env.DB.prepare(sql).run();
+  crmReady = true;
+}
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const TIME_RE = /^\d{2}:\d{2}$/;
+
+function daysBetween(from, to) {
+  return Math.floor((Date.parse(to) - Date.parse(from)) / 86400000);
+}
+
+async function crmSettings(env, tenantId) {
+  const { results } = await env.DB.prepare(
+    "SELECT key, value FROM tenant_settings WHERE tenant_id = ?1 AND key IN ('crm.followDays','crm.dormantDays')"
+  ).bind(tenantId).all();
+  const m = Object.fromEntries(results.map(r => [r.key, Number(r.value)]));
+  return { followDays: m['crm.followDays'] || 60, dormantDays: m['crm.dormantDays'] || 120 };
+}
+
+/* 判定はサーバー側に集約する（将来のAI文面生成・通知が同じ判定を使うため）
+   ・予約あり＝次回予約日が「今日」以降（過去日の消し忘れは予約なし扱い）
+   ・フォロー候補＝経過>=followDays かつ 予約なし かつ 経過<dormantDays
+   ・休眠客＝経過>=dormantDays かつ 予約なし */
+function decorate(c, today, st) {
+  const hasReservation = !!(c.next_reservation_date && c.next_reservation_date >= today);
+  const daysSince = c.last_visit_date ? daysBetween(c.last_visit_date, today) : null;
+  let segment = 'normal';
+  if (daysSince != null && !hasReservation) {
+    if (daysSince >= st.dormantDays) segment = 'dormant';
+    else if (daysSince >= st.followDays) segment = 'follow';
+  }
+  return Object.assign({}, c, { hasReservation, daysSince, segment });
+}
+
+async function crmAll(env, tenantId) {
+  const { results } = await env.DB.prepare(
+    `SELECT id, name, kana, birthday_month, birthday_day, birthday_year,
+            last_visit_date, next_reservation_date, next_reservation_time,
+            visit_count, note, updated_at
+     FROM customers WHERE tenant_id = ?1 AND deleted_at IS NULL
+     ORDER BY COALESCE(kana, name)`
+  ).bind(tenantId).all();
+  return results;
+}
+
+async function handleCrm(body, env, cors) {
+  if (!env.DB) return json({ error: 'no database' }, 503, cors);
+  const t = await authTenant(env, body.slug, body.token);
+  if (!t) return json({ error: 'unauthorized' }, 401, cors);
+  if (t.status !== 'active') return json({ error: 'unavailable' }, 403, cors);
+  await ensureCrmTables(env);
+
+  /* 「今日」はオーナーの端末の日付を使う（UTCとのズレで経過日数が狂わないように） */
+  const today = DATE_RE.test(String(body.today || '')) ? body.today : new Date().toISOString().slice(0, 10);
+  const st = await crmSettings(env, t.id);
+  const a = body.action;
+
+  if (a === 'dashboard') {
+    const all = (await crmAll(env, t.id)).map(c => decorate(c, today, st));
+    const month = Number(today.slice(5, 7));
+    const in7 = new Date(Date.parse(today) + 7 * 86400000).toISOString().slice(0, 10);
+    const monthEnd = today.slice(0, 7) + '-31';
+    const byDate = (x, y) => (x.next_reservation_date + (x.next_reservation_time || '')) < (y.next_reservation_date + (y.next_reservation_time || '')) ? -1 : 1;
+    const reserved = all.filter(c => c.hasReservation).sort(byDate);
+    return json({
+      today, settings: st, total: all.length,
+      birthdays: all.filter(c => c.birthday_month === month)
+                    .sort((x, y) => (x.birthday_day || 32) - (y.birthday_day || 32)),
+      reservationsToday: reserved.filter(c => c.next_reservation_date === today),
+      reservationsWeek: reserved.filter(c => c.next_reservation_date <= in7),
+      reservationsMonth: reserved.filter(c => c.next_reservation_date <= monthEnd),
+      follow: all.filter(c => c.segment === 'follow').sort((x, y) => y.daysSince - x.daysSince),
+      dormant: all.filter(c => c.segment === 'dormant').sort((x, y) => y.daysSince - x.daysSince),
+    }, 200, cors);
+  }
+
+  if (a === 'list') {
+    let list = (await crmAll(env, t.id)).map(c => decorate(c, today, st));
+    const month = Number(today.slice(5, 7));
+    const f = body.filter;
+    if (f === 'birthday') list = list.filter(c => c.birthday_month === month).sort((x, y) => (x.birthday_day || 32) - (y.birthday_day || 32));
+    if (f === 'reserved') list = list.filter(c => c.hasReservation);
+    if (f === 'unreserved') list = list.filter(c => !c.hasReservation);
+    if (f === 'follow') list = list.filter(c => c.segment === 'follow');
+    if (f === 'dormant') list = list.filter(c => c.segment === 'dormant');
+    const q = String(body.q || '').trim();
+    if (q) list = list.filter(c => (c.name || '').includes(q) || (c.kana || '').includes(q));
+    return json({ customers: list, settings: st, today }, 200, cors);
+  }
+
+  if (a === 'get') {
+    const row = await env.DB.prepare(
+      'SELECT * FROM customers WHERE id = ?1 AND tenant_id = ?2 AND deleted_at IS NULL'
+    ).bind(Number(body.id), t.id).first();
+    if (!row) return json({ error: 'not found' }, 404, cors);
+    return json({ customer: decorate(row, today, st), settings: st }, 200, cors);
+  }
+
+  if (a === 'upsert') {
+    const c = body.customer || {};
+    const name = String(c.name || '').trim().slice(0, 100);
+    if (!name) return json({ error: 'name required' }, 400, cors);
+    const intOr = (v, min, max) => { const n = Number(v); return Number.isInteger(n) && n >= min && n <= max ? n : null; };
+    const dateOr = v => DATE_RE.test(String(v || '')) ? v : null;
+    const vals = {
+      name,
+      kana: String(c.kana || '').trim().slice(0, 100) || null,
+      birthday_month: intOr(c.birthday_month, 1, 12),
+      birthday_day: intOr(c.birthday_day, 1, 31),
+      birthday_year: intOr(c.birthday_year, 1900, 2100),
+      last_visit_date: dateOr(c.last_visit_date),
+      next_reservation_date: dateOr(c.next_reservation_date),
+      next_reservation_time: TIME_RE.test(String(c.next_reservation_time || '')) ? c.next_reservation_time : null,
+      visit_count: intOr(c.visit_count, 0, 100000) || 0,
+      note: String(c.note || '').slice(0, 2000) || null,
+    };
+    if (c.id) {
+      const r = await env.DB.prepare(
+        `UPDATE customers SET name=?1, kana=?2, birthday_month=?3, birthday_day=?4, birthday_year=?5,
+           last_visit_date=?6, next_reservation_date=?7, next_reservation_time=?8,
+           visit_count=?9, note=?10, updated_at=datetime('now')
+         WHERE id=?11 AND tenant_id=?12 AND deleted_at IS NULL`
+      ).bind(vals.name, vals.kana, vals.birthday_month, vals.birthday_day, vals.birthday_year,
+             vals.last_visit_date, vals.next_reservation_date, vals.next_reservation_time,
+             vals.visit_count, vals.note, Number(c.id), t.id).run();
+      return json({ ok: true, id: Number(c.id) }, 200, cors);
+    }
+    const r = await env.DB.prepare(
+      `INSERT INTO customers (tenant_id, name, kana, birthday_month, birthday_day, birthday_year,
+         last_visit_date, next_reservation_date, next_reservation_time, visit_count, note)
+       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)`
+    ).bind(t.id, vals.name, vals.kana, vals.birthday_month, vals.birthday_day, vals.birthday_year,
+           vals.last_visit_date, vals.next_reservation_date, vals.next_reservation_time,
+           vals.visit_count, vals.note).run();
+    const idRow = await env.DB.prepare(
+      'SELECT id FROM customers WHERE tenant_id = ?1 ORDER BY id DESC LIMIT 1'
+    ).bind(t.id).first();
+    return json({ ok: true, id: idRow ? idRow.id : null }, 200, cors);
+  }
+
+  if (a === 'visit') {
+    /* 「来店を記録」：最終来店＝今日、来店回数＋1（1タップ運用のため） */
+    await env.DB.prepare(
+      `UPDATE customers SET last_visit_date=?1, visit_count=visit_count+1, updated_at=datetime('now')
+       WHERE id=?2 AND tenant_id=?3 AND deleted_at IS NULL`
+    ).bind(today, Number(body.id), t.id).run();
+    return json({ ok: true }, 200, cors);
+  }
+
+  if (a === 'delete') {
+    await env.DB.prepare(
+      "UPDATE customers SET deleted_at=datetime('now'), updated_at=datetime('now') WHERE id=?1 AND tenant_id=?2"
+    ).bind(Number(body.id), t.id).run();
+    return json({ ok: true }, 200, cors);
+  }
+
+  if (a === 'settings') {
+    const upd = async (key, v, min, max) => {
+      const n = Number(v);
+      if (!Number.isInteger(n) || n < min || n > max) return;
+      await env.DB.prepare(
+        `INSERT INTO tenant_settings (tenant_id, key, value) VALUES (?1, ?2, ?3)
+         ON CONFLICT(tenant_id, key) DO UPDATE SET value=?3, updated_at=datetime('now')`
+      ).bind(t.id, key, String(n)).run();
+    };
+    if (body.followDays != null) await upd('crm.followDays', body.followDays, 7, 365);
+    if (body.dormantDays != null) await upd('crm.dormantDays', body.dormantDays, 14, 730);
+    const cur = await crmSettings(env, t.id);
+    if (cur.followDays >= cur.dormantDays) {
+      /* フォロー基準が休眠基準以上は矛盾するため、休眠側を自動でずらす */
+      await upd('crm.dormantDays', cur.followDays * 2, 14, 730);
+    }
+    return json({ settings: await crmSettings(env, t.id) }, 200, cors);
+  }
+
+  return json({ error: 'unknown action' }, 400, cors);
+}
+
 /* 購入者のセルフ設定保存。setup_token が一致したテナントの config だけを更新する */
 async function handleSetup(body, env, cors) {
   if (!env.DB) return json({ error: 'no database' }, 503, cors);
@@ -624,6 +855,19 @@ export default {
       if (!t) return json({ error: 'not found' }, 404, cors);
       if (t.status !== 'active') return json({ error: 'unavailable' }, 403, cors);
       return json(publicConfig(t, url.origin), 200, cors);
+    }
+
+    /* ---------- 顧客フォロー管理（crm.html が使う・オーナー専用） ----------
+       認証はテナント別の設定キー。tenant_id で完全分離 */
+    if (request.method === 'POST' && url.pathname === '/crm') {
+      let cbody;
+      try { cbody = await request.json(); } catch { return json({ error: 'invalid json' }, 400, cors); }
+      try {
+        return await handleCrm(cbody, env, cors);
+      } catch (e) {
+        console.log('crm error', String(e));
+        return json({ error: 'crm failed' }, 500, cors);
+      }
     }
 
     /* ---------- 購入者のセルフ設定保存（editor.html の「保存」が使う） ----------

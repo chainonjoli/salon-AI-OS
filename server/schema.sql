@@ -34,3 +34,38 @@ CREATE TABLE IF NOT EXISTS usage_daily (
 );
 
 CREATE INDEX IF NOT EXISTS idx_usage_day ON usage_daily (day);
+
+-- =========================================================
+-- 顧客フォロー管理（CRM）— 全テナント標準搭載
+-- ※ Workerが初回アクセス時に自動作成するため、手動実行は不要。
+--   （新規環境を手で構築する場合の記録として残している）
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS customers (
+  id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id             INTEGER NOT NULL,     -- テナント分離の要
+  name                  TEXT NOT NULL,
+  kana                  TEXT,                 -- 並び替え・検索用（任意）
+  birthday_month        INTEGER,              -- 1〜12（任意。月日だけの登録が可能）
+  birthday_day          INTEGER,              -- 1〜31（任意）
+  birthday_year         INTEGER,              -- 任意（年齢管理しないサロンは空でよい）
+  last_visit_date       TEXT,                 -- 'YYYY-MM-DD'（任意）
+  next_reservation_date TEXT,                 -- 'YYYY-MM-DD'（任意）
+  next_reservation_time TEXT,                 -- 'HH:MM'（任意）
+  visit_count           INTEGER NOT NULL DEFAULT 0,
+  note                  TEXT,
+  created_at            TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at            TEXT NOT NULL DEFAULT (datetime('now')),
+  deleted_at            TEXT                  -- 論理削除
+);
+CREATE INDEX IF NOT EXISTS idx_customers_tenant   ON customers (tenant_id, deleted_at);
+CREATE INDEX IF NOT EXISTS idx_customers_birthday ON customers (tenant_id, birthday_month, birthday_day);
+
+-- テナント別設定（汎用KV。crm.followDays / crm.dormantDays など）
+CREATE TABLE IF NOT EXISTS tenant_settings (
+  tenant_id  INTEGER NOT NULL,
+  key        TEXT NOT NULL,
+  value      TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (tenant_id, key)
+);
