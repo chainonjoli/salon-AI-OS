@@ -28,7 +28,7 @@
 | | エンドユーザー | 顧客（＝購入者） |
 |---|---|---|
 | 誰 | サロンに来店するお客様 | 個人サロンのオーナー（40〜60代・ITが苦手） |
-| 見る画面 | `index.html` | `admin.html` / `editor.html` / `factory.html` |
+| 見る画面 | `index.html` | `owner.html`（ポータル。editor/factoryへは鍵引き継ぎで到達） |
 | 接点 | LINE・HP経由 | 商談 → `intro.html` |
 
 ### 解決したい課題（オーナー側）
@@ -45,8 +45,8 @@
 ```
 【お客様】  HP/LINE → index.html → AI受付で質問 or AIカウンセラーで3問診断
                                  → LINE友だち追加 / 予約
-【オーナー】 editor.html でナレッジ入力 → salon-config.js を書き出し → 差し替え → 全AIに反映
-            factory.html でテーマ1つ入力 → SNSコンテンツ8種を下書き → 確認して自分で投稿
+【オーナー】 owner.html（管理リンク1本）→ 今日やること確認・顧客管理・
+            投稿づくり（ネタ出し→8種下書き）・サロン情報の編集（保存は1分でAIに反映）
 【購入検討者】intro.html → 4つのデモを実際に触る → LINEで問い合わせ
 ```
 
@@ -72,32 +72,28 @@
 > オーナーの入口は**オーナーポータル `owner.html?s=…&k=…` に一本化**
 > （タブ：今日／顧客／投稿づくり／設定。ファクトリー・エディタへ鍵を自動引き継ぎ。
 > 旧 `crm.html` は自動転送）。
-> 以下の本文は同日昼時点の記述。
+> （本文は同日深夜に全面更新済み）
 
-### 総合完成度：**約 45%**（販売開始に必要な水準に対して）
+### 総合完成度：**約 65%**（販売開始に必要な水準に対して）
 
 内訳の考え方 —
-- **見せる**（デモとして商談で通用する）：約 85%
-- **売れる**（1店舗に納品して運用できる）：約 45%
-- **SaaSとして複数店舗に売る**：約 15%
+- **見せる**（デモとして商談で通用する）：約 95%
+- **売れる**（1店舗に納品して運用できる）：約 75%（実在サロンAir Richで稼働中）
+- **SaaSとして複数店舗に売る**：約 40%（マルチテナント稼働。課金・本格認証が未実装）
 
 ### 一言でいうと
-**「AI受付は本番稼働中（2026-08-08〜）。ただしデータはまだ保存されない」状態。**
+**「マルチテナントで本番稼働中。AI受付・顧客管理・投稿づくりが実運用でき、
+残る大物は課金（Stripe）・本格ログイン・予約/LINE連携」の状態。**
 
-中核である「本物のAIがサロンのナレッジを使って自由に会話する」部分は、
-Gemini（gemini-3.6-flash・有料）＋Cloudflare Workerで接続済み。
-`check.html` の受け入れ検査（接続／営業時間／料金／医療的断定／未登録メニュー）に合格しています。
-管理画面の保存・カルテ等のデータ永続化は引き続き未実装です。
-
-### 5段階分類
+### 5段階分類（2026-08-08 深夜時点）
 
 | 分類 | 対象 |
 |---|---|
-| **【完成】** | お客様ページ全6画面／AI美容カウンセラー（ルールベース診断）／設定エディタ＋ライブプレビュー／業種プリセット5種／販売用紹介ページ `intro.html`／Cloudflare Workerのコード／設計ドキュメント12本／GitHub Pagesデプロイ |
-| **【ほぼ完成】** | AI受付（デモモードで動作。実AI接続は未検証）／AIコンテンツファクトリー（同上）／レスポンシブ対応／レート制限・オリジン検証 |
-| **【作業中】** | 管理画面 `admin.html`（**UIモックアップ。保存は動作しない**）／販売資料まわり（料金未定） |
-| **【未実装】** | データ永続化／ログイン認証／AI秘書のロジック／AI教育担当のロジック／予約システム／決済／マルチテナント／アクセス解析／SEO |
-| **【要確認】** | 実AI接続時の応答品質・コスト／Anthropic・Google側の月額上限設定／`hp` リポジトリの既存GASチャットボットとの重複 |
+| **【完成・本番稼働】** | マルチテナント基盤（D1・`?s=slug`・テナント別上限/利用量）／AI受付（Gemini実接続）／お客様ページ（デザインシステムv1・トップ写真対応）／顧客フォロー管理（誕生日・予約・フォロー候補・休眠）／オーナーポータル `owner.html`（今日/顧客/投稿づくり/設定）／ネタ出し→8種生成のファクトリー／設定エディタ（サーバー保存）／接続診断 `check.html`／業種プリセット5種／販売ページ `intro.html` |
+| **【ほぼ完成】** | 管理API `/admin`（curl運用。ダッシュボードUIは未） |
+| **【デモ専用】** | `admin.html`（架空データのモックアップ。実管理はポータルに移行済み。商談デモ用として存置） |
+| **【未実装】** | 本格ログイン認証（現在は設定キー方式）／Stripe課金／予約API連携／LINE通知・配信／来店履歴テーブル（visit_countは手動）／AI教育担当の実ロジック／アクセス解析／SEO |
+| **【要確認】** | 販売価格／`hp` の既存GASチャットボットとの一本化／intro.htmlに残るデモ用PIN表記（A-3） |
 
 ---
 
@@ -111,8 +107,9 @@ Gemini（gemini-3.6-flash・有料）＋Cloudflare Workerで接続済み。
 - ビルド：**なし**（`index.html` をブラウザで開けばそのまま動く）
 - CSS：各HTMLファイル内の `<style>`。CSS変数でテーマ化
 - 配信：GitHub Pages（`main` ブランチのルート）
-- サーバー：Cloudflare Workers 1本のみ（AIのAPIキーを隠すためだけに存在）
-- データベース：**なし**（設計のみ `docs/03_database_design.md`）
+- サーバー：Cloudflare Workers 1本（AIプロキシ＋テナント解決＋CRM API。Git連携で自動デプロイ）
+- データベース：**Cloudflare D1（SQLite）稼働中**。`tenants`／`usage_daily`／`customers`／`tenant_settings`。
+  CRM系テーブルはWorkerが初回アクセス時に自動作成（詳細 `server/schema.sql`）
 
 ### ディレクトリ構成
 ```
@@ -122,13 +119,18 @@ salon-AI-OS/
 ├── editor.html                 設定エディタ（フォーム→ライブプレビュー→書き出し）
 ├── factory.html                AIコンテンツファクトリー（AI広報の実装）
 ├── intro.html                  販売用の商品紹介ページ
-├── check.html                  AI受付の接続診断（受け入れ検査5項目・noindex）
-├── wrangler.jsonc              Cloudflare Git連携の設定（Worker本体と運用変数の指定）
+├── owner.html                  ★ オーナーポータル（今日/顧客/投稿づくり/設定・管理リンクの入口）
+├── crm.html                    旧顧客管理（owner.htmlへ自動転送）
+├── check.html                  AI受付の接続診断（?s=対応・noindex）
+├── wrangler.jsonc              Cloudflare Git連携の設定（Worker本体・D1バインディング・運用変数）
 ├── salon-config.js             ★ chainonjoli のナレッジ（実データ）
 ├── salon-config.template.js    新規サロン用の空テンプレート
 ├── presets.js                  業種プリセット5種（美容室/ネイル/アイラッシュ/整体/リラクゼーション）
-├── server/worker.js            Cloudflare Worker（Claude / Gemini 両対応）
-├── docs/01〜06                 設計書（画面遷移・構成・DB・ナレッジ・ロードマップ・設置手順）
+├── server/worker.js            Cloudflare Worker（AI・テナント・CRM。Claude / Gemini 両対応）
+├── server/schema.sql           D1スキーマ（tenants/usage_daily/customers/tenant_settings）
+├── server/seed.sql             初期テナント投入SQL（chainonjoli／テスト美容室）
+├── server/seed-airrich.sql     Air Richテナント投入SQL
+├── docs/01〜08                 設計書（〜06に加え 07=テナント運用 08=CRM仕様）
 ├── docs/10〜14                 コンテンツファクトリーの要件・機能・UI・データ・テスト
 ├── README.md
 └── HANDOFF.md                  ← このファイル
@@ -158,8 +160,12 @@ editor.html ──postMessage({type:'salon-config'})──▶ index.html(iframe)
      │
      └─ 書き出し ─▶ salon-config.js ─▶ index.html / admin.html が読み込む
 
-index.html ──POST {dept:'reception', messages:[...]}──▶ Worker ──▶ Claude or Gemini
-factory.html ──POST {dept:'factory', action:'generate'|'extract'|'ping'}──▶ Worker ──▶ 同上
+index.html ──POST {dept:'reception', salon?, messages:[...]}──▶ Worker ──▶ Gemini（or Claude）
+factory.html ──POST {dept:'factory', action:'ideas'|'generate'|'extract'|'ping', salon?}──▶ 同上
+index.html(?s=slug) ──GET /config?s=──▶ Worker ──▶ D1 tenants（設定を配信・着せ替え）
+editor.html ──POST /setup {slug,token,config}──▶ D1（購入者のセルフ保存）
+owner.html ──POST /crm {slug,token,action}──▶ D1 customers/tenant_settings（顧客管理）
+販売者 ──POST /admin (x-admin-token)──▶ D1（テナント追加・停止・利用量）
 ```
 
 ---
@@ -200,7 +206,8 @@ factory.html ──POST {dept:'factory', action:'generate'|'extract'|'ping'}─�
 - 編集できる範囲：`brand` / `theme`(パレット選択) / `contact` / `home.cards` / `menu` /
   `access` / `reserve` / `reception.greeting` / `reception.faq` / `counselor.concerns` /
   `counselor.disclaimer` / `marketing` / `quiz`
-- **編集できない範囲：`ai.endpoint` と `admin.pin`**（手でファイルを編集する必要あり。§11 既知の課題）
+- **編集できない範囲：`ai.endpoint` と `admin.pin`**（テナント運用ではどちらも不要：接続先はWorkerが注入し、PINはD1に保存しない）
+- **サーバー保存対応**：設定リンク（?s=&k=）で開くと自サロンをD1へ直接保存（1分でAI反映）
 
 ### AIコンテンツファクトリー `factory.html` 【ほぼ完成】
 - テーマ1つ → 8種のコンテンツを一括生成
@@ -208,8 +215,9 @@ factory.html ──POST {dept:'factory', action:'generate'|'extract'|'ping'}─�
 - PDF・写真から商品情報をAIが読み取って登録（`action:'extract'`）
 - 商品カタログ・生成履歴を `localStorage` に保存
 - 薬機法NGワードをシステムプロンプトで抑制
-- **接続先は `salon-config.js` ではなく、factory.html 内の設定画面で別途入力する `localStorage` の
-  `factory.profile.aiEndpoint`**（§11 既知の課題）
+- 「ネタ出し」対応：お題→投稿ネタ8個の提案→選んだネタで一括生成（action:'ideas'）
+- **ポータル（?s=&k=付き）から開くと接続先・店名・テーマ色を自動設定**し、
+  AI利用量もそのテナントに記録。単独URLでは従来どおり設定画面で手動入力
 
 ### 業種プリセット `presets.js` 【完成】
 `美容室` `ネイル` `アイラッシュ` `整体` `リラクゼーション` の5種。
@@ -272,10 +280,10 @@ factory.html ──POST {dept:'factory', action:'generate'|'extract'|'ping'}─�
 |---|---|---|
 | A-1 | ~~AI受付を実接続して動作検証する~~ **完了（2026-08-08）** | Gemini（gemini-3.6-flash・有料）＋Cloudflare WorkerのGit連携で接続。`check.html` の診断5項目で合格。回数上限は `wrangler.jsonc` の `RATE_PER_DAY=60` |
 | A-2 | **API側の月額上限を設定する** | Anthropic Console → Settings → Limits。Gemini の場合は Google Cloud の予算アラート。**オーナー本人のログインが必要なためAIでは実行できません** |
-| A-3 | **`admin.pin` を変更し、公開ページから削除する** | 現在 `intro.html` にデモ用PINとして実PINが記載。実顧客データを入れる前に必須 |
+| A-3 | **`intro.html` のデモ用PIN表記の扱いを決める** | admin.htmlは架空データのみになったためリスクは低下。デモ専用PINへの変更 or 表記継続をオーナーが判断 |
 | A-4 | **`worker.js` のナレッジ二重管理を解消する** | `worker.js` 内の `SALON` 定数が `salon-config.js` の内容を手動コピーしている。価格を変えると片方だけ古くなる（§11-1） |
 | A-5 | **料金を決めて `intro.html` に載せる** | 「まずご相談」より金額が見えるほうが問い合わせは増える |
-| A-6 | **管理画面の「保存」を実装するか、デモである旨を明示する** | 現状は「できると書いてあるができない」状態。納品時に必ず問題になる |
+| A-6 | ~~管理画面の「保存」問題~~ **解消（オーナーポータルが実管理を担当）** | `admin.html` は商談デモ専用として存置。混同を避けるため、いずれページ冒頭に「デモ」表記を推奨 |
 
 ### Priority B：完成度向上
 
@@ -407,7 +415,8 @@ SNS投稿もLINE配信も、AIが自動送信することは**設計上ありま
 |---|---|---|
 | **GitHub** | ソース管理 | `chainonjoli/salon-AI-OS`（public / branch `main`） |
 | **GitHub Pages** | 本番配信 | 稼働中。`main` への push で自動デプロイ |
-| **Cloudflare Workers** | AIプロキシ（APIキー秘匿） | **稼働中**（2026-08-08〜）。GitHubと連携し `main` へのpushで自動デプロイ（設定は `wrangler.jsonc`）。APIキーはダッシュボードのSecret `GEMINI_API_KEY` のみ |
+| **Cloudflare Workers** | AIプロキシ＋テナント解決＋CRM API | **稼働中**。GitHub連携で自動デプロイ（`wrangler.jsonc`）。Secretは `GEMINI_API_KEY` と `ADMIN_TOKEN` |
+| **Cloudflare D1** | テナント台帳・利用量・顧客データ | **稼働中**（DB名 `salon-ai-os`）。CRM系テーブルは自動作成 |
 | **Google AI Studio (Gemini)** | AI受付・ファクトリーの頭脳（`gemini-3.6-flash`） | **契約済み・有料・稼働中**。受付は thinkingLevel low でコスト抑制 |
 | **Anthropic API** | Claude（コードは対応済み・切替可能） | 未契約。`PROVIDER=claude`＋キー登録で切替できる |
 | **LINE公式アカウント** | 予約・問い合わせ導線 | 稼働中（URLは `salon-config.js` の `contact.lineUrl`） |
@@ -467,13 +476,12 @@ SNS投稿もLINE配信も、AIが自動送信することは**設計上ありま
 価格やFAQを変更した際、**片方だけ直すとAI受付が古い情報を答えます。**
 現状は「両方を必ず同時に直す」しかありません。Priority A-4 で解消すべき箇所です。
 
-### 11-2. 管理画面の「保存」が動かない 🔴 重要
-`admin.html` の保存ボタンはトーストを出すだけです。画面上の説明文は「反映される」と書いていますが
-実装されていません。**実顧客に納品する前に、実装するか文言を修正する必要があります。**
+### 11-2. 管理画面の「保存」が動かない → **解消（2026-08-08）**
+実管理はオーナーポータル（`owner.html`）＋設定エディタのサーバー保存に移行済み。
+`admin.html` は架空データの商談デモ専用として存置（実顧客データは入れないこと）。
 
-### 11-3. factory.html の接続先が別管理
-`factory.html` は `salon-config.js` の `ai.endpoint` を読まず、自分の設定画面で入力した
-`localStorage` の値を使います。**同じWorkerを2か所に設定する必要があり、片方だけ設定すると混乱します。**
+### 11-3. factory.html の接続先が別管理 → **ポータル経由なら解消（2026-08-08）**
+ポータルから開くと接続先は自動設定されます。単独URLで開いた場合のみ従来どおり手動設定。
 
 ### 11-4. AIチャットが2系統ある【要確認】
 `chainonjoli/hp`（実ホームページ）には、**Google Apps Script 経由の別のチャットボットが既に稼働中**です。
