@@ -602,6 +602,28 @@ function buildFactoryGenerateSystem(profile) {
   ].join('\n');
 }
 
+/* ---------- ネタ出し（お題 → 投稿ネタの提案） ---------- */
+function buildIdeasSystem(profile, month) {
+  return [
+    'あなたは小規模サロン・店舗のSNS企画のプロフェッショナルです。',
+    'お店の「中の人」の相談役として、投稿ネタ（企画案）を提案します。',
+    '',
+    '【お店のプロフィール】',
+    factoryProfileText(profile),
+    month ? `【いまの月】${month}月（季節感をネタに活かす）` : '',
+    '',
+    '【必ず守るルール】',
+    '1. お題に沿って投稿ネタを8個提案する。お題が無ければ、季節と業種から自由に8個。',
+    '2. 切り口を混ぜること：豆知識／よくある質問への回答／お客様の変化・声の紹介／メニュー・商品の紹介／季節のケア／お店の日常・人柄／ご予約やお知らせ／体験・企画もの。同じ切り口を3つ以上並べない。',
+    '3. お店の事実（価格・効果・実在のお客様の声・空き状況など）を創作しない。実情が必要な部分は「（◯◯を入れてください）」と空欄で示す。',
+    `4. 次の表現を使わない：${FACTORY_NG.join('、')}。`,
+    '5. 出力はJSONのみ。前後に説明文やコードフェンスを付けない。',
+    '',
+    '【出力形式】',
+    '{"ideas":[{"title":"ネタのタイトル（15字前後）","angle":"何をどう伝えるかの切り口説明（1〜2文）","media":"リール／フィード投稿／ストーリーズ／LINE配信／ブログ のいずれか","hook":"投稿冒頭の1行フック案"}]}',
+  ].filter(Boolean).join('\n');
+}
+
 const EXTRACT_FIELDS = ['name', 'brand', 'features', 'effects', 'usage', 'target', 'cautions'];
 
 const EXTRACT_PROMPT = [
@@ -721,6 +743,29 @@ async function handleFactory(body, env, cors, usageTenant) {
   if (action === 'ping') {
     const provider = providerOf(env);
     return json({ ok: !!provider, provider }, 200, cors);
+  }
+
+  if (action === 'ideas') {
+    const input = body.input || {};
+    const topic = String(input.topic || '').slice(0, 300);
+    const profile = input.profile || {};
+    const m = Number(input.month);
+    const month = m >= 1 && m <= 12 ? m : null;
+    const { text, usage } = await callAI(env, {
+      system: buildIdeasSystem(profile, month),
+      messages: [{ role: 'user', content: topic ? `【お題】\n${topic}` : '【お題】\n（指定なし。季節と業種に合わせて自由に）' }],
+      maxTokens: 4096,
+    });
+    await recordUsage(env, usageTenant, usage);
+    const raw = parseJsonLoose(text);
+    const ideas = (Array.isArray(raw.ideas) ? raw.ideas : []).slice(0, 10).map(i => ({
+      title: String(i.title || '').slice(0, 80),
+      angle: String(i.angle || '').slice(0, 300),
+      media: String(i.media || '').slice(0, 30),
+      hook: String(i.hook || '').slice(0, 140),
+    })).filter(i => i.title);
+    if (!ideas.length) return json({ error: 'ideas failed' }, 502, cors);
+    return json({ ideas }, 200, cors);
   }
 
   if (action === 'generate') {

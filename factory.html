@@ -92,6 +92,14 @@
   .hint-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
   .prod-chips{display:flex;flex-wrap:wrap;gap:8px}
   .gen-loading{text-align:center;padding:40px 0 10px;color:var(--muted);font-size:13px;display:none}
+  .idea-box{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin:4px 0 22px}
+  .idea-box .gen-loading{padding:22px 0 6px}
+  .idea-card{border:1px solid var(--line);border-radius:14px;padding:14px;margin-top:10px;background:var(--paper,#FCFBF9)}
+  .idea-card .im{display:inline-block;font-size:10.5px;font-weight:600;letter-spacing:.08em;color:var(--accent-deep);background:var(--accent-soft);border-radius:8px;padding:2px 9px;margin-bottom:6px}
+  .idea-card b{display:block;font-size:14.5px;margin-bottom:4px}
+  .idea-card .an{font-size:12.5px;color:var(--muted);line-height:1.8;margin:0 0 4px}
+  .idea-card .hk{font-size:12.5px;line-height:1.7;margin:0 0 10px}
+  .idea-card .use{width:100%;border:1px solid var(--line);border-radius:999px;padding:10px 0;font-size:13px;font-weight:600;color:var(--accent-deep);background:var(--accent-soft)}
   .gen-loading.show{display:block}
   .gen-loading .dots i{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent);margin:0 3px;animation:bounce 1s infinite}
   .gen-loading .dots i:nth-child(2){animation-delay:.15s}
@@ -183,6 +191,18 @@
       <!-- ================= 作る ================= -->
       <section class="screen" id="f-create">
         <div class="topbar"><button class="back" onclick="goF('f-home')">←</button><span class="t">コンテンツを作る</span></div>
+
+        <div class="idea-box">
+          <label class="lbl" for="idea-topic" style="margin-top:0">💡 ネタに迷ったら <small>（お題ひとつでAIがネタを提案）</small></label>
+          <div style="display:flex;gap:8px">
+            <input id="idea-topic" placeholder="例：8月の乾燥対策、お盆の営業、新商品"
+              style="flex:1;min-width:0;border:1px solid var(--line);border-radius:14px;padding:12px 14px;background:var(--card);font-size:14.5px">
+            <button class="btn accent" id="idea-btn" style="flex:none" onclick="makeIdeas()">ネタ出し</button>
+          </div>
+          <p style="font-size:11.5px;color:var(--muted);margin:8px 2px 0">空欄のままでもOK。いまの季節と業種に合わせて提案します。</p>
+          <div class="gen-loading" id="idea-loading"><div class="dots"><i></i><i></i><i></i></div><p style="margin:12px 0 0">ネタを考えています…</p></div>
+          <div id="idea-list"></div>
+        </div>
 
         <label class="lbl" for="theme-input">1. テーマ <small>（自由に書いてください）</small></label>
         <textarea id="theme-input" class="big" placeholder="例：乾燥肌向けの保湿ケアのご紹介"></textarea>
@@ -408,6 +428,68 @@ function renderCreate(){
       p.appendChild(b);
     });
   }
+}
+
+/* ============ ネタ出し（お題→投稿ネタの提案） ============ */
+async function makeIdeas(){
+  const topic=document.getElementById('idea-topic').value.trim();
+  const btn=document.getElementById('idea-btn');
+  const loading=document.getElementById('idea-loading');
+  const list=document.getElementById('idea-list');
+  btn.disabled=true; list.innerHTML=''; loading.classList.add('show');
+
+  let ideas=null;
+  if(aiOn()){
+    try{
+      const res=await fetch(profile.aiEndpoint,{
+        method:'POST',headers:{'content-type':'application/json'},
+        body:JSON.stringify({dept:'factory',action:'ideas',input:{
+          topic, month:new Date().getMonth()+1,
+          profile:{shopName:profile.shopName,industry:profile.industry,intro:profile.intro,tone:profile.tone}
+        }})
+      });
+      if(!res.ok) throw new Error(res.status);
+      ideas=(await res.json()).ideas;
+    }catch(e){
+      console.warn('ideas failed', e);
+      toast('AIにつながらなかったため、定番ネタを表示します');
+    }
+  }
+  if(!ideas||!ideas.length) ideas=demoIdeas(topic);
+  renderIdeas(ideas);
+  btn.disabled=false; loading.classList.remove('show');
+}
+
+/* AI未接続・障害時の定番ネタ（お店の事実は含めない） */
+function demoIdeas(topic){
+  const t=topic||'いまの季節のケア';
+  return [
+    {title:t+'の豆知識', media:'フィード投稿', angle:'お客様が「知らなかった」と保存したくなる、プロならではの豆知識をひとつに絞って。', hook:'実は、9割の方が誤解しています'},
+    {title:t+'のよくある質問', media:'LINE配信', angle:'よく聞かれる質問にひとつ答える形式。最後に「他にも気になることがあればどうぞ」と誘導。', hook:'「'+t+'って実際どうなの？」に答えます'},
+    {title:t+'のビフォーアフター企画', media:'リール', angle:'施術やケアの前後を見せる企画。（お客様の許可を得た写真・具体的な変化を入れてください）', hook:'たった1回で、ここまで変わる？'},
+    {title:'サロンの日常・裏側', media:'ストーリーズ', angle:'準備風景や道具のこだわりなど、人柄が伝わる日常の1コマ。（今日あった出来事を入れてください）', hook:'開店前の、静かな時間'},
+    {title:'メニューのひとつを深掘り', media:'フィード投稿', angle:'1つのメニューに絞って「誰に・何が・どう良いか」を丁寧に。（メニュー名を入れてください）', hook:'このメニュー、実はいちばん奥が深いんです'},
+    {title:'お客様の声のご紹介', media:'フィード投稿', angle:'いただいた感想をひとつ紹介し、同じ悩みの方へ一言添える。（実際の声を入れてください）', hook:'先日、うれしい言葉をいただきました'},
+  ];
+}
+
+function renderIdeas(ideas){
+  const list=document.getElementById('idea-list');
+  list.innerHTML=ideas.map((i,n)=>
+    '<div class="idea-card">'+
+      (i.media?'<span class="im">'+esc(i.media)+'</span>':'')+
+      '<b>'+esc(i.title)+'</b>'+
+      (i.angle?'<p class="an">'+esc(i.angle)+'</p>':'')+
+      (i.hook?'<p class="hk">「'+esc(i.hook)+'」</p>':'')+
+      '<button class="use" onclick="useIdea('+n+')">このネタで8種つくる</button>'+
+    '</div>').join('');
+  list._ideas=ideas;
+}
+function useIdea(n){
+  const i=document.getElementById('idea-list')._ideas[n];
+  document.getElementById('theme-input').value=i.title+(i.angle?'\n'+i.angle:'')+(i.hook?'\n冒頭フック案：'+i.hook:'');
+  toast('テーマに入れました。「この内容でつくる」を押してください');
+  document.getElementById('theme-input').scrollIntoView({behavior:'smooth',block:'center'});
 }
 
 let currentResult=null;   /* 表示中の履歴アイテム */
