@@ -16,10 +16,15 @@
                          Claudeの鍵があればClaude、なければGemini
      MODEL             … 任意。Claudeのモデル。既定 claude-opus-5
      GEMINI_MODEL      … 任意。Geminiのモデル。既定 gemini-2.5-flash
+                         （本番推奨 gemini-3.6-flash。受付は thinkingLevel:'low' で
+                          思考トークンを抑えてコストを管理する）
      ALLOWED_ORIGIN    … 任意。サイトのURL（例 https://example.github.io）
                          未設定なら全オリジン許可（開発用）
      RATE_PER_MIN      … 任意。1分あたりの同一IP上限（既定 8）
      RATE_PER_DAY      … 任意。1日あたりの全体上限（既定 500）
+                         （月1,000円前後で運用するなら 60 程度を推奨。
+                          Googleの予算アラートは通知のみで自動停止しないため、
+                          実際に止める役はこの上限が担う）
    ========================================================= */
 
 /* ---------- サロンナレッジ ----------
@@ -210,9 +215,17 @@ async function callAI(env, { system, messages, maxTokens, lowEffort }) {
           ? { text: b.text }
           : { inline_data: { mime_type: b.source.media_type, data: b.source.data } }),
   }));
-  const body = { contents, generationConfig: { maxOutputTokens: maxTokens } };
-  if (system) body.system_instruction = { parts: [{ text: system }] };
   const model = env.GEMINI_MODEL || 'gemini-2.5-flash';
+  const body = { contents, generationConfig: { maxOutputTokens: maxTokens } };
+  if (lowEffort) {
+    /* 受付は短文でよいので「考えすぎ」を抑える。
+       Geminiは思考トークンも出力として課金されるため、ここがコスト管理の要。
+       3系は thinkingLevel、2.5系は thinkingBudget と指定方法が異なる */
+    body.generationConfig.thinkingConfig = model.startsWith('gemini-2')
+      ? { thinkingBudget: 0 }
+      : { thinkingLevel: 'low' };
+  }
+  if (system) body.system_instruction = { parts: [{ text: system }] };
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
@@ -224,6 +237,8 @@ async function callAI(env, { system, messages, maxTokens, lowEffort }) {
     throw new Error('upstream ' + res.status);
   }
   const data = await res.json();
+  /* トークン消費の実測用（Cloudflareのログで月額の答え合わせができる） */
+  if (data.usageMetadata) console.log('gemini usage', JSON.stringify(data.usageMetadata));
   if (data.promptFeedback && data.promptFeedback.blockReason) throw new Error('refusal');
   const cand = (data.candidates || [])[0];
   if (cand && cand.finishReason === 'SAFETY') throw new Error('refusal');
