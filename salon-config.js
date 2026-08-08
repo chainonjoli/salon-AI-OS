@@ -31,7 +31,7 @@ window.SALON_CONFIG = {
      server/worker.js をCloudflareに設置し、そのURLを入れると
      AI受付が本物のAIとして会話を始めます。手順は docs/06_deploy.md */
   ai: {
-    endpoint: ''
+    endpoint: 'https://salon-ai-os.chainon-joli.workers.dev'
   },
 
   /* ---------- 管理画面（admin.html） ----------
