@@ -1,0 +1,352 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Salon AI OS｜AIスタッフが24時間働くサロンへ</title>
+<meta name="description" content="受付・カウンセラー・広報・秘書・教育担当。5つのAI部署が個人サロンのオーナーの仕事を減らします。エステ・美容室・ネイル・アイラッシュ・整体・リラクゼーションに対応。">
+<meta property="og:title" content="Salon AI OS｜AIスタッフが24時間働くサロンへ">
+<meta property="og:description" content="5つのAI部署が、あなたの代わりに働きます。実際に触れるデモをご用意しました。">
+<meta property="og:type" content="website">
+<style>
+  :root{
+    --paper:#FCFBF9;
+    --surface:#F5F2EE;
+    --card:#FFFFFF;
+    --line:#E8E3DC;
+    --ink:#37322E;
+    --muted:#8B8378;
+    --accent:#A18072;
+    --accent-deep:#82655A;
+    --accent-soft:#F0E7E1;
+    --sage:#8FA08A;
+    --sage-soft:#EDF1EA;
+    --gold-soft:#F5EEDF;
+    --gold-ink:#8A713F;
+    --serif:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --sans:"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI","Noto Sans JP",-apple-system,sans-serif;
+    color-scheme:light;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--sans);
+    font-size:16px;
+    line-height:1.9;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:inherit}
+  a:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:8px}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+  .wrap{max-width:680px;margin:0 auto;padding:0 22px}
+  section{padding:52px 0}
+  @media(min-width:768px){section{padding:72px 0}}
+
+  h2{
+    font-family:var(--serif);font-weight:500;font-size:23px;letter-spacing:.04em;
+    margin:0 0 10px;text-wrap:balance;
+  }
+  @media(min-width:768px){h2{font-size:27px}}
+  .lead{color:var(--muted);font-size:14.5px;margin:0 0 30px}
+
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:9px;
+    padding:16px 30px;border-radius:999px;font-weight:600;font-size:15.5px;
+    background:var(--accent-deep);color:#fff;text-decoration:none;transition:opacity .15s;
+  }
+  .btn:active{opacity:.78}
+  .btn.ghost{background:var(--card);color:var(--ink);border:1px solid var(--line)}
+  .btn.wide{width:100%}
+
+  /* ===== ヒーロー ===== */
+  .hero{
+    background:linear-gradient(168deg,#F3ECE7 0%,#EFE6DF 48%,#E7DAD1 100%);
+    padding:64px 0 58px;position:relative;overflow:hidden;
+  }
+  .hero::after{
+    content:"";position:absolute;width:320px;height:320px;border-radius:50%;
+    right:-130px;top:-130px;background:rgba(255,255,255,.32);
+  }
+  .hero .wrap{position:relative;z-index:1}
+  .hero .eyebrow{
+    font-size:11px;letter-spacing:.24em;font-weight:600;color:var(--accent-deep);
+    text-transform:uppercase;display:block;margin-bottom:16px;
+  }
+  .hero h1{
+    font-family:var(--serif);font-weight:500;font-size:31px;line-height:1.5;
+    letter-spacing:.04em;margin:0 0 16px;text-wrap:balance;
+  }
+  @media(min-width:768px){.hero h1{font-size:40px}}
+  .hero p{font-size:15px;color:#5F564E;margin:0 0 30px;max-width:30em}
+  .hero-note{font-size:12px;color:var(--muted);margin:14px 0 0}
+
+  /* ===== 悩み ===== */
+  .pains{background:var(--surface)}
+  .pain-list{display:flex;flex-direction:column;gap:12px;margin:0;padding:0;list-style:none}
+  .pain-list li{
+    background:var(--card);border:1px solid var(--line);border-radius:16px;
+    padding:16px 18px;font-size:14.5px;line-height:1.8;display:flex;gap:13px;
+  }
+  .pain-list .clock{
+    flex:none;font-size:11px;font-weight:700;color:var(--accent-deep);
+    background:var(--accent-soft);border-radius:8px;padding:3px 8px;height:fit-content;
+    font-variant-numeric:tabular-nums;letter-spacing:.02em;
+  }
+  .pain-turn{
+    margin:28px 0 0;padding:20px 22px;background:var(--accent-deep);color:#fff;
+    border-radius:18px;font-size:15.5px;font-weight:600;line-height:1.8;text-wrap:balance;
+  }
+
+  /* ===== 5部署 ===== */
+  .dept{display:flex;gap:16px;padding:22px 0;border-bottom:1px solid var(--line)}
+  .dept:last-of-type{border-bottom:none}
+  .dept .ic{
+    flex:none;width:46px;height:46px;border-radius:15px;background:var(--accent-soft);
+    display:flex;align-items:center;justify-content:center;font-size:22px;
+  }
+  .dept b{display:block;font-size:15.5px;margin-bottom:3px}
+  .dept p{margin:0;font-size:13.5px;color:var(--muted);line-height:1.8}
+
+  /* ===== ナレッジ ===== */
+  .knowledge{background:var(--surface)}
+  .kn-visual{
+    background:var(--card);border:1px solid var(--line);border-radius:20px;
+    padding:24px 20px;margin:24px 0 0;text-align:center;
+  }
+  .kn-core{
+    display:inline-block;background:var(--accent-deep);color:#fff;
+    border-radius:14px;padding:12px 24px;font-weight:600;font-size:14.5px;
+  }
+  .kn-arrow{color:var(--muted);font-size:20px;line-height:1;margin:10px 0}
+  .kn-row{display:flex;flex-wrap:wrap;gap:7px;justify-content:center}
+  .kn-row span{
+    background:var(--surface);border-radius:999px;padding:6px 13px;font-size:12.5px;
+  }
+  .kn-caption{font-size:12.5px;color:var(--muted);margin:16px 0 0;line-height:1.8}
+
+  /* ===== デモ ===== */
+  .demo-card{
+    display:block;background:var(--card);border:1px solid var(--line);border-radius:20px;
+    padding:22px;text-decoration:none;margin-bottom:14px;transition:transform .15s;
+  }
+  .demo-card:hover{transform:translateY(-2px)}
+  .demo-card .tag{
+    font-size:11px;font-weight:600;letter-spacing:.1em;color:var(--accent-deep);
+    display:block;margin-bottom:7px;
+  }
+  .demo-card b{display:block;font-family:var(--serif);font-weight:500;font-size:19px;margin-bottom:6px}
+  .demo-card p{margin:0 0 14px;font-size:13.5px;color:var(--muted);line-height:1.8}
+  .demo-card .go{font-size:14px;font-weight:600;color:var(--accent-deep)}
+  .demo-pin{
+    display:inline-block;background:var(--gold-soft);color:var(--gold-ink);
+    border-radius:8px;padding:3px 10px;font-size:12px;font-weight:600;margin-top:2px;
+  }
+
+  /* ===== 導入の流れ ===== */
+  .steps{counter-reset:s;margin:0;padding:0;list-style:none}
+  .steps li{
+    counter-increment:s;position:relative;padding:0 0 26px 52px;
+  }
+  .steps li::before{
+    content:counter(s);position:absolute;left:0;top:0;
+    width:34px;height:34px;border-radius:50%;background:var(--accent-soft);
+    color:var(--accent-deep);font-weight:700;font-size:15px;
+    display:flex;align-items:center;justify-content:center;
+    font-variant-numeric:tabular-nums;
+  }
+  .steps li::after{
+    content:"";position:absolute;left:17px;top:38px;bottom:2px;width:1px;background:var(--line);
+  }
+  .steps li:last-child::after{display:none}
+  .steps b{display:block;font-size:15.5px;margin-bottom:3px}
+  .steps p{margin:0;font-size:13.5px;color:var(--muted);line-height:1.8}
+
+  /* ===== 業種 ===== */
+  .industries{background:var(--surface)}
+  .ind-grid{display:flex;flex-wrap:wrap;gap:9px;margin-top:6px}
+  .ind-grid span{
+    background:var(--card);border:1px solid var(--line);border-radius:999px;
+    padding:9px 17px;font-size:14px;
+  }
+
+  /* ===== 問い合わせ ===== */
+  .contact{background:var(--accent-deep);color:#fff;text-align:center}
+  .contact h2{color:#fff}
+  .contact p{color:rgba(255,255,255,.82);font-size:14.5px;margin:0 auto 28px;max-width:26em}
+  .contact .btn{background:#fff;color:var(--accent-deep)}
+  .contact .sub{font-size:12.5px;color:rgba(255,255,255,.6);margin:20px 0 0}
+
+  footer{padding:34px 0;text-align:center;font-size:12px;color:var(--muted);line-height:2}
+</style>
+
+<!-- ================= ヒーロー ================= -->
+<header class="hero">
+  <div class="wrap">
+    <span class="eyebrow">SALON AI OS</span>
+    <h1>AIスタッフが、<br>24時間働くサロンへ。</h1>
+    <p>受付・カウンセラー・広報・秘書・教育担当。<br>5つの「AI部署」が、オーナーの仕事を引き受けます。</p>
+    <a class="btn" href="#demo">実際に触ってみる</a>
+    <p class="hero-note">登録不要・スマホでそのまま体験できます</p>
+  </div>
+</header>
+
+<!-- ================= 悩み ================= -->
+<section class="pains">
+  <div class="wrap">
+    <h2>こんなこと、ありませんか。</h2>
+    <p class="lead">個人サロンのオーナーは、施術以外の仕事が多すぎます。</p>
+    <ul class="pain-list">
+      <li><span class="clock">21:40</span>「明日空いてますか？」に気づいたのは、翌朝の開店前だった。</li>
+      <li><span class="clock">毎回</span>「どのコースが合いますか」を、その都度いちから説明している。</li>
+      <li><span class="clock">15分</span>SNSに何を書くか考えているうちに、今日も投稿できなかった。</li>
+      <li><span class="clock">記憶</span>あのお客様の苦手な香り、紙のカルテと自分の頭の中にしかない。</li>
+    </ul>
+    <p class="pain-turn">この4つ、すべてAIに任せられます。<br>しかも、あなたのサロンの言葉で。</p>
+  </div>
+</section>
+
+<!-- ================= 5部署 ================= -->
+<section>
+  <div class="wrap">
+    <h2>5つのAI部署が、働きます。</h2>
+    <p class="lead">チャットボットではありません。役割を持ったスタッフとして動きます。</p>
+
+    <div class="dept">
+      <span class="ic">🛎</span>
+      <span><b>AI受付</b><p>営業時間・料金・アクセス・駐車場・キャンセルポリシー。深夜でも即答し、そのまま予約へご案内します。</p></span>
+    </div>
+    <div class="dept">
+      <span class="ic">🌸</span>
+      <span><b>AI美容カウンセラー</b><p>3つの質問でお悩みを伺い、その方に合う施術・ホームケア・生活習慣を提案。LINE登録と予約まで自然につなぎます。</p></span>
+    </div>
+    <div class="dept">
+      <span class="ic">📣</span>
+      <span><b>AI広報</b><p>Instagram・Threads・LINE・ブログ・Googleの投稿文を、サロンの文体で作成。リール台本やハッシュタグまで。</p></span>
+    </div>
+    <div class="dept">
+      <span class="ic">🗂</span>
+      <span><b>AI秘書</b><p>カルテと来店周期を見守り、「そろそろの方」を教えてくれます。フォローの一言も下書きしてくれます。</p></span>
+    </div>
+    <div class="dept">
+      <span class="ic">🎓</span>
+      <span><b>AI教育担当</b><p>接客・施術・商品のマニュアルを覚え、新人スタッフの研修と理解度チェックを担当します。</p></span>
+    </div>
+  </div>
+</section>
+
+<!-- ================= ナレッジ ================= -->
+<section class="knowledge">
+  <div class="wrap">
+    <h2>いちばんの特徴は、<br>「ナレッジ」です。</h2>
+    <p class="lead">AIは毎回ゼロから考えません。サロンの情報を1か所に覚えています。</p>
+
+    <div class="kn-visual">
+      <div class="kn-core">サロンのナレッジ</div>
+      <div class="kn-row" style="margin-top:12px">
+        <span>コンセプト</span><span>文体・話し方</span><span>メニュー</span><span>価格</span>
+        <span>FAQ</span><span>NGワード</span><span>接客ルール</span><span>キャンペーン</span>
+      </div>
+      <div class="kn-arrow">↓</div>
+      <div class="kn-row">
+        <span>🛎 受付</span><span>🌸 カウンセラー</span><span>📣 広報</span><span>🗂 秘書</span><span>🎓 教育</span>
+      </div>
+      <p class="kn-caption">価格を1か所直せば、受付の答えも、SNSの投稿文も、同時に変わります。<br>AIごとに言うことが違う、が起きません。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= デモ ================= -->
+<section id="demo">
+  <div class="wrap">
+    <h2>実際に、触ってみてください。</h2>
+    <p class="lead">説明より、動くものを見ていただくのが早いと思います。<br>（伊勢市のエステサロンを例にした画面です）</p>
+
+    <a class="demo-card" href="./" target="_blank" rel="noopener">
+      <span class="tag">FOR GUESTS</span>
+      <b>お客様が見る画面</b>
+      <p>AI受付によくある質問をタップ、AIカウンセラーに相談してみてください。3つの質問に答えると、その方に合うケアが提案されます。</p>
+      <span class="go">開いてみる →</span>
+    </a>
+
+    <a class="demo-card" href="admin.html" target="_blank" rel="noopener">
+      <span class="tag">FOR OWNERS</span>
+      <b>オーナーが使う画面</b>
+      <p>ナレッジ管理・SNS投稿の作成・顧客カルテ・スタッフ研修・分析。オーナーの1日がここに集まります。</p>
+      <span class="go">開いてみる →</span><br>
+      <span class="demo-pin">デモ用PIN：2238</span>
+    </a>
+
+    <a class="demo-card" href="factory.html" target="_blank" rel="noopener">
+      <span class="tag">FOR OWNERS</span>
+      <b>AIコンテンツファクトリー</b>
+      <p>「今週のキャンペーン」と入れるだけで、Instagram投稿・リール台本・LINE配信文・ショート動画台本まで、まとめて下書きします。</p>
+      <span class="go">開いてみる →</span>
+    </a>
+
+    <a class="demo-card" href="editor.html" target="_blank" rel="noopener">
+      <span class="tag">SETUP</span>
+      <b>設定エディタ</b>
+      <p>フォームに書くだけで、AIが覚える内容が変わります。上部で業種を切り替えると、別のサロンに早変わりするのが分かります。</p>
+      <span class="go">開いてみる →</span>
+    </a>
+
+    <p class="kn-caption" style="text-align:left">※ 体験版のため、AIは決まった受け答えで動いています。ご契約後は、あなたのサロンの情報を覚えたAIが自由に会話します。カルテや分析の数字はサンプルです。</p>
+  </div>
+</section>
+
+<!-- ================= 導入の流れ ================= -->
+<section class="industries">
+  <div class="wrap">
+    <h2>導入は、3ステップ。</h2>
+    <p class="lead">パソコンが苦手でも大丈夫です。コードは1行も触りません。</p>
+    <ol class="steps">
+      <li><b>業種を選ぶ</b><p>あなたの業種のひな形を読み込みます。質問項目も、注意書きも、業種に合わせて用意されています。</p></li>
+      <li><b>サロンの情報を入れる</b><p>サロン名・メニュー・料金・営業時間・連絡先。フォームに書くと、右の画面がその場で変わります。</p></li>
+      <li><b>公開する</b><p>できあがった画面を、そのままホームページやLINEからご案内いただけます。</p></li>
+    </ol>
+
+    <h2 style="margin-top:38px">対応業種</h2>
+    <p class="lead">業種ごとに、質問項目と安全上の注意書きを作り分けています。</p>
+    <div class="ind-grid">
+      <span>エステ</span><span>美容室</span><span>ネイル</span>
+      <span>アイラッシュ</span><span>整体</span><span>リラクゼーション</span>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 安心してお使いいただくために ================= -->
+<section>
+  <div class="wrap">
+    <h2>安心してお使いいただくために</h2>
+    <p class="lead">お客様に向けてAIが話す以上、守るべき線があります。</p>
+    <div class="dept">
+      <span class="ic" style="background:var(--sage-soft)">🩺</span>
+      <span><b>医療行為をしません</b><p>AIカウンセラーは診断をせず、「治る」「消える」といった断定表現を使いません。症状が続く場合は医療機関の受診をご案内します。業種ごとに注意文を作り分けています。</p></span>
+    </div>
+    <div class="dept">
+      <span class="ic" style="background:var(--sage-soft)">✍️</span>
+      <span><b>勝手に送信しません</b><p>お客様へのLINEやSNS投稿は、必ず下書きで止まります。オーナーが確認して承認したものだけが世に出ます。</p></span>
+    </div>
+    <div class="dept">
+      <span class="ic" style="background:var(--sage-soft)">🔒</span>
+      <span><b>知らないことは答えません</b><p>登録されていないことを推測で答えず、「オーナーに確認します」とお伝えします。価格や営業時間を創作することはありません。</p></span>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 問い合わせ ================= -->
+<section class="contact">
+  <div class="wrap">
+    <h2>まずは、ご相談ください。</h2>
+    <p>料金・導入方法・あなたのサロンで何ができるか。<br>デモを見ながらご説明します。</p>
+    <a class="btn" href="https://lin.ee/O1jhrwd" target="_blank" rel="noopener">LINEで問い合わせる</a>
+    <p class="sub">お電話：<a href="tel:08042231203" style="color:#fff">080-4223-1203</a>（9:00–20:00）</p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    Salon AI OS<br>
+    <span style="font-size:11px">画面は開発中のものです。内容は予告なく変わることがあります。</span>
+  </div>
+</footer>
