@@ -402,10 +402,14 @@ async function handleCrm(body, env, cors) {
     ).bind(t.id, vals.name, vals.kana, vals.birthday_month, vals.birthday_day, vals.birthday_year,
            vals.last_visit_date, vals.next_reservation_date, vals.next_reservation_time,
            vals.visit_count, vals.note).run();
-    const idRow = await env.DB.prepare(
-      'SELECT id FROM customers WHERE tenant_id = ?1 ORDER BY id DESC LIMIT 1'
-    ).bind(t.id).first();
-    return json({ ok: true, id: idRow ? idRow.id : null }, 200, cors);
+    let newId = r && r.meta ? r.meta.last_row_id : null;
+    if (newId == null) {
+      const idRow = await env.DB.prepare(
+        'SELECT id FROM customers WHERE tenant_id = ?1 ORDER BY id DESC LIMIT 1'
+      ).bind(t.id).first();
+      newId = idRow ? idRow.id : null;
+    }
+    return json({ ok: true, id: newId }, 200, cors);
   }
 
   if (a === 'visit') {
@@ -469,6 +473,11 @@ async function handleSetup(body, env, cors) {
   return json({ ok: true, slug }, 200, cors);
 }
 
+/* 設定キーの生成（authTenant/handleSetupの「16文字以上」を満たす64桁hex） */
+function newSetupToken() {
+  return crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
+}
+
 /* 管理API本体（呼び出し元でトークン検証済み） */
 async function handleAdmin(body, env, cors) {
   if (!env.DB) return json({ error: 'no database' }, 503, cors);
@@ -506,26 +515,44 @@ async function handleAdmin(body, env, cors) {
          updated_at = datetime('now'), deleted_at = NULL`
     ).bind(slug, name, JSON.stringify(cfg),
            Number(body.ratePerMin || 5), Number(body.ratePerDay || 60),
-           crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '')).run();
+           newSetupToken()).run();
     tenantCache.delete(slug);
     return json({ ok: true, slug }, 200, cors);
   }
 
+  if (a === 'rotate') {
+    /* 設定キーの再発行（旧キーは即時無効）。upsertではキーは変わらないため、
+       漏洩時・渡し直し時はこのアクションを使う */
+    const slug = String(body.slug || '').toLowerCase();
+    if (!SLUG_RE.test(slug)) return json({ error: 'invalid slug' }, 400, cors);
+    const token = newSetupToken();
+    const r = await env.DB.prepare(
+      "UPDATE tenants SET setup_token = ?2, updated_at = datetime('now') WHERE slug = ?1 AND deleted_at IS NULL"
+    ).bind(slug, token).run();
+    if (r && r.meta && r.meta.changes === 0) return json({ error: 'not found' }, 404, cors);
+    tenantCache.delete(slug);
+    return json({ ok: true, slug, setup_token: token }, 200, cors);
+  }
+
   if (a === 'status') {
     const slug = String(body.slug || '').toLowerCase();
+    if (!SLUG_RE.test(slug)) return json({ error: 'invalid slug' }, 400, cors);
     if (!['active', 'suspended'].includes(body.status)) return json({ error: 'invalid status' }, 400, cors);
-    await env.DB.prepare(
+    const r = await env.DB.prepare(
       "UPDATE tenants SET status = ?2, updated_at = datetime('now') WHERE slug = ?1 AND deleted_at IS NULL"
     ).bind(slug, body.status).run();
+    if (r && r.meta && r.meta.changes === 0) return json({ error: 'not found' }, 404, cors);
     tenantCache.delete(slug);
     return json({ ok: true, slug, status: body.status }, 200, cors);
   }
 
   if (a === 'delete') {
     const slug = String(body.slug || '').toLowerCase();
-    await env.DB.prepare(
+    if (!SLUG_RE.test(slug)) return json({ error: 'invalid slug' }, 400, cors);
+    const r = await env.DB.prepare(
       "UPDATE tenants SET deleted_at = datetime('now'), status = 'suspended' WHERE slug = ?1"
     ).bind(slug).run();
+    if (r && r.meta && r.meta.changes === 0) return json({ error: 'not found' }, 404, cors);
     tenantCache.delete(slug);
     return json({ ok: true, slug }, 200, cors);
   }

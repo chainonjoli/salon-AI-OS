@@ -57,6 +57,9 @@ curl -X POST https://<worker>/admin -H "x-admin-token: $TOKEN" -H "content-type:
   -d '{"action":"status","slug":"hanako-salon","status":"active"}'
   -d '{"action":"delete","slug":"hanako-salon"}'
 
+# 設定キーの再発行（旧キーは即時無効。新キーが返る）
+  -d '{"action":"rotate","slug":"hanako-salon"}'
+
 # 月次利用量（テナント別のリクエスト数・トークン数）
   -d '{"action":"usage","month":"2026-08"}'
 ```
@@ -77,4 +80,5 @@ curl -X POST https://<worker>/admin -H "x-admin-token: $TOKEN" -H "content-type:
 - `?s=` なしのアクセスは従来どおり同梱 `salon-config.js`（chainonjoli）で動きます。
   D1障害時も同じ経路に自動で縮退します（chainonjoliは止まらない）
 - 購入者へ渡すのは「お客様ページURL」と「設定リンク」の2つだけ。
-  設定リンクは合鍵なので、再発行したい場合は `upsert` し直すと新しいキーになります
+  設定リンクは合鍵です。**`upsert` の上書きではキーは変わりません**（誤って無効化しない設計）。
+  再発行したいときは管理APIの `rotate` を使うと、旧キーが即時無効になり新キーが返ります
