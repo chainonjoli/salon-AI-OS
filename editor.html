@@ -150,6 +150,21 @@
       </div>
     </div>
 
+    <div class="intro" id="seller-panel" style="border:1px dashed #C9B4A3">
+      <b style="color:var(--ink);font-size:13px">🏪 販売者用：このフォームの内容で新規サロンを登録</b>
+      <p style="margin:8px 0 10px;font-size:12px">ヒアリング内容を上の業種ひな形＋フォームに入力し、ここで登録すると、そのサロンの<b>お客様ページ・管理リンクが即時発行</b>されます。合言葉はこのタブを閉じるまで記憶されます（端末には残しません）。</p>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+        <input type="text" id="f-reg-slug" placeholder="サロンID（例 hanako-salon）" autocomplete="off"
+               style="flex:1;min-width:150px;border:1px solid var(--line);border-radius:10px;padding:9px 12px;background:var(--paper);font-size:13px">
+        <button class="btn ghost" style="padding:9px 12px" onclick="suggestSlug()">名前から提案</button>
+        <input type="password" id="f-reg-token" placeholder="管理者の合言葉" autocomplete="off"
+               style="flex:1;min-width:140px;border:1px solid var(--line);border-radius:10px;padding:9px 12px;background:var(--paper);font-size:13px">
+        <button class="btn accent" style="padding:9px 16px" id="f-reg-btn" onclick="registerSalon()">新規サロンとして登録する</button>
+      </div>
+      <p style="margin:8px 2px 0;font-size:11px;color:var(--muted)">サロンIDは半角小文字英数とハイフン。お客様ページのURL（?s=◯◯）になります。あとから変更しにくいため慎重に。</p>
+      <div id="f-reg-result" style="display:none;margin-top:14px"></div>
+    </div>
+
     <details class="sec" open>
       <summary><span class="ic">🏠</span><span><b>基本情報</b><span class="d">サロン名・キャッチコピー</span></span><span class="chev">›</span></summary>
       <div class="sec-body">
@@ -590,8 +605,104 @@ async function serverSave(){
   }
 }
 
+/* ---------- 販売者用：新規サロン登録 ----------
+   既存の管理API（/admin・x-admin-token認証）を呼ぶだけ。Worker無変更。
+   合言葉はコードに書かず、sessionStorage（タブを閉じると消える）にのみ保持 */
+const ADMIN_TOKEN_SS='salonAdminToken';
+function suggestSlug(){
+  const name=$('f-name').value.trim().toLowerCase();
+  const ascii=name.normalize('NFKD').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,40);
+  if(ascii){$('f-reg-slug').value=ascii;}
+  else toast('サロン名が日本語のため自動提案できません。半角英数で入力してください（例 hanako-salon）');
+}
+async function adminCall(body,token){
+  const res=await fetch(SERVER_BASE+'/admin',{
+    method:'POST',
+    headers:{'content-type':'application/json','x-admin-token':token},
+    body:JSON.stringify(body)
+  });
+  const data=await res.json().catch(()=>({}));
+  if(res.status===401) throw new Error('unauthorized');
+  if(!res.ok) throw new Error(data.error||res.status);
+  return data;
+}
+async function registerSalon(){
+  const slug=$('f-reg-slug').value.trim().toLowerCase();
+  const token=$('f-reg-token').value.trim();
+  if(!/^[a-z0-9][a-z0-9-]{0,39}$/.test(slug)){toast('サロンIDは半角小文字英数とハイフンで入力してください');return;}
+  if(token.length<8){toast('管理者の合言葉を入力してください');return;}
+  if(!SERVER_BASE){toast('接続先が見つかりません（salon-config.jsのai.endpoint）');return;}
+
+  /* 既存サロンの誤上書き防止 */
+  try{
+    const exists=await fetch(SERVER_BASE+'/config?s='+encodeURIComponent(slug));
+    if(exists.ok){
+      const c=await exists.json();
+      if(!confirm('サロンID「'+slug+'」は既に「'+((c.brand&&c.brand.name)||slug)+'」が使っています。\n設定を上書きしますか？（通常は別のIDにしてください）')) return;
+    }
+  }catch(e){}
+
+  const btn=$('f-reg-btn');
+  btn.disabled=true;btn.textContent='登録しています…';
+  try{
+    const cfg=collect();
+    await adminCall({action:'upsert',slug,name:cfg.brand.name,config:cfg},token);
+    const got=await adminCall({action:'get',slug},token);
+    sessionStorage.setItem(ADMIN_TOKEN_SS,token);
+    showRegResult(slug,got.tenant.setup_token,cfg.brand.name);
+    toast('登録しました 🎉');
+  }catch(e){
+    toast(String(e.message)==='unauthorized'?'合言葉が違います':'登録できませんでした。時間をおいてお試しください');
+  }finally{
+    btn.disabled=false;btn.textContent='新規サロンとして登録する';
+  }
+}
+function copyTxt(id){
+  const el=document.getElementById(id);
+  const v=el.tagName==='TEXTAREA'||el.tagName==='INPUT'?el.value:el.textContent;
+  navigator.clipboard.writeText(v).then(()=>toast('コピーしました')).catch(()=>{el.select&&el.select();document.execCommand('copy');toast('コピーしました');});
+}
+function showRegResult(slug,setupToken,name){
+  const base=location.href.replace(/editor\.html.*$/,'');
+  const cust=base+'?s='+encodeURIComponent(slug);
+  const ownerU=base+'owner.html?s='+encodeURIComponent(slug)+'&k='+encodeURIComponent(setupToken);
+  const checkU=base+'check.html?s='+encodeURIComponent(slug);
+  const msg=[
+    name+' さま','',
+    'Salon AI OS のご利用準備が整いました🌿','',
+    '■ お客様用ページ（ホームページやInstagramのプロフィールに貼ってください）',
+    cust,'',
+    '■ 管理ページ（オーナー様専用の合鍵です。他の方に渡さないでください）',
+    ownerU,'',
+    'まずは管理ページを開いて、',
+    '1.「顧客」タブでお客様を2〜3名登録してみる',
+    '2.「投稿づくり」でネタ出しを試してみる',
+    '3.「設定」でサロン情報を確認する',
+    'から始めてみてください。','',
+    'ご不明な点は、いつでもご連絡ください。',
+  ].join('\n');
+  const row=(label,id,url)=>'<div style="margin:0 0 8px"><b style="font-size:12px">'+label+'</b>'+
+    '<div style="display:flex;gap:6px;margin-top:3px"><input id="'+id+'" readonly value="'+url.replace(/"/g,'&quot;')+'" style="flex:1;min-width:0;border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:11.5px;background:var(--paper)">'+
+    '<button class="btn ghost" style="padding:7px 12px;font-size:12px" onclick="copyTxt(\''+id+'\')">コピー</button></div></div>';
+  $('f-reg-result').innerHTML=
+    '<p style="margin:0 0 10px;font-size:13px;font-weight:600;color:#5C7057">✅ 登録が完了しました。以下をオーナー様へお渡しください。</p>'+
+    row('お客様ページ','reg-u1',cust)+
+    row('管理リンク（オーナー専用・合鍵）','reg-u2',ownerU)+
+    row('接続診断（あなたの確認用）','reg-u3',checkU)+
+    '<b style="font-size:12px">引き渡しメッセージ（LINEにそのまま貼れます）</b>'+
+    '<div style="display:flex;gap:6px;margin-top:3px"><textarea id="reg-msg" readonly style="flex:1;min-height:150px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:11.5px;background:var(--paper);line-height:1.7">'+
+    msg.replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</textarea>'+
+    '<button class="btn ghost" style="padding:7px 12px;font-size:12px;align-self:flex-start" onclick="copyTxt(\'reg-msg\')">コピー</button></div>'+
+    '<p style="margin:10px 2px 0;font-size:11px;color:var(--muted)">お渡しの前に、接続診断を一度実行しておくと確実です。</p>';
+  $('f-reg-result').style.display='block';
+  $('f-reg-result').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
 /* ---------- 起動 ---------- */
 (function init(){
+  /* 合言葉：同じタブ内でのみ記憶（端末・コードには残さない） */
+  const savedToken=sessionStorage.getItem(ADMIN_TOKEN_SS);
+  if(savedToken)$('f-reg-token').value=savedToken;
   /* 設定リンク（editor.html?s=サロンID&k=設定キー）で開いた場合は
      そのサロンの設定を読み込む。下書き復元より優先 */
   const qs=new URLSearchParams(location.search);
