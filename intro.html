@@ -334,6 +334,29 @@
   </div>
 </section>
 
+<!-- ================= 料金 ================= -->
+<section class="pains" id="price">
+  <div class="wrap">
+    <h2>料金</h2>
+    <p class="lead">受付・顧客管理・フォロー・発信をまとめる「Salon AI OS」。<br>いまは実店舗での改善にご協力いただけるサロン様を優先しています。</p>
+
+    <div style="background:var(--card);border:1px solid var(--hair,#E5D6CC);border-radius:20px;padding:26px 24px;text-align:center">
+      <span style="display:block;font-size:11px;letter-spacing:.2em;color:var(--accent-deep);font-weight:600" id="pr-label">料金</span>
+      <p style="margin:10px 0 2px;font-family:var(--serif);font-size:40px;line-height:1.3;letter-spacing:.02em" id="pr-price">お問い合わせください</p>
+      <p style="margin:0 0 14px;font-size:12.5px;color:var(--muted)" id="pr-tax"></p>
+      <p style="margin:0;font-size:13px;line-height:1.95;color:var(--muted)" id="pr-note"></p>
+    </div>
+
+    <div style="margin-top:14px;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:20px 22px">
+      <p style="margin:0 0 8px;font-size:13.5px;font-weight:600">含まれるもの（標準機能）</p>
+      <p style="margin:0;font-size:13px;line-height:2.05;color:var(--muted)">24時間AI受付／AIカウンセラー／顧客フォロー管理（誕生日・次回予約・フォロー候補・休眠のお客様）／投稿づくり（ネタ出し→8種の下書き）／オーナーポータル／あなたのサロン専用URL</p>
+    </div>
+
+    <p style="margin:16px 2px 0;font-size:12px;line-height:1.95;color:var(--muted)" id="pr-monthly"></p>
+    <p style="margin:6px 2px 0;font-size:11.5px;line-height:1.9;color:var(--muted)" id="pr-future"></p>
+  </div>
+</section>
+
 <!-- ================= 問い合わせ ================= -->
 <section class="contact">
   <div class="wrap">
@@ -350,3 +373,26 @@
     <span style="font-size:11px">画面は開発中のものです。内容は予告なく変わることがあります。</span>
   </div>
 </footer>
+
+<script src="pricing.js"></script>
+<script>
+/* 価格表示：pricing.js（唯一の定義場所）から読み込む。
+   読み込めない場合は「お問い合わせください」のまま */
+(function () {
+  var P = window.SALON_OS_PRICING;
+  if (!P || !P.plans || !P.plans[P.stage]) return;
+  var cur = P.plans[P.stage];
+  var yen = function (n) { return '¥' + Number(n).toLocaleString('ja-JP'); };
+  document.getElementById('pr-label').textContent = cur.label;
+  document.getElementById('pr-price').textContent = yen(cur.price);
+  document.getElementById('pr-tax').textContent = P.tax + '・' + P.type;
+  if (cur.note) document.getElementById('pr-note').textContent = cur.note;
+  if (P.monthly && !P.monthly.available && P.monthly.plannedNote) {
+    document.getElementById('pr-monthly').textContent = '※ 月額利用料は現在かかりません。' + P.monthly.plannedNote;
+  }
+  if (P.stage === 'monitor') {
+    document.getElementById('pr-future').textContent =
+      '※ モニター期間終了後、' + yen(P.plans.launch.price) + ' → ' + yen(P.plans.regular.price) + ' へ順次改定を予定しています。';
+  }
+})();
+</script>
