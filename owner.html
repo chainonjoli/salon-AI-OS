@@ -52,6 +52,9 @@
   .stat .k{font-size:12px;letter-spacing:.08em;color:var(--muted);display:block}
   .stat .v{font-family:var(--serif);font-size:30px;line-height:1.3;letter-spacing:.02em}
   .stat .v small{font-size:13px;color:var(--muted);font-family:var(--sans);margin-left:2px}
+  .daily{margin-top:16px;padding:16px 18px;background:var(--surface-2);border-left:2px solid var(--hair);border-radius:0 4px 4px 0}
+  .daily .dk{display:block;font-size:10px;letter-spacing:.22em;color:var(--muted);margin-bottom:6px}
+  .daily p{margin:0;font-family:var(--serif);font-size:15px;line-height:1.95;letter-spacing:.03em;color:var(--ink-2)}
   .banner{display:none;margin-top:16px;padding:14px 16px;background:var(--warn-soft);border:1px solid var(--line-2);border-radius:4px;font-size:14px;line-height:1.9;color:var(--warn)}
   .banner button{float:right;color:var(--muted);font-size:13px;padding:0 4px}
 
@@ -128,6 +131,7 @@
   <!-- ============ 今日（ホーム） ============ -->
   <section class="view active" id="v-today">
     <div class="head"><span class="t">今日</span><span class="salon" id="d-salon"></span></div>
+    <div class="daily"><span class="dk">今日のひとこと</span><p id="d-quote"></p></div>
     <div class="banner" id="d-banner"></div>
     <div class="stats">
       <button class="stat" onclick="openList('birthday')"><span class="k">今月のお誕生日</span><span class="v num" id="d-bd">–<small>名</small></span></button>
@@ -343,8 +347,67 @@ function rowsCapped(list, n, render, filter){
   return html;
 }
 
+/* ---------- 今日のひとこと（日替わり・日付で決まる） ---------- */
+const QUOTES = [
+  '丁寧な手は、言葉より先にお客様へ届きます。',
+  '今日いちばん癒されていいのは、あなた自身かもしれません。',
+  '売り込まなくて大丈夫。思い出してもらえる存在でいれば十分です。',
+  '小さなサロンの強みは、ひとりひとりを覚えていられること。',
+  '「また来たい」は、技術と同じくらい、帰り際のひとことで決まります。',
+  '忙しい日ほど、開店前の深呼吸をひとつ。',
+  '完璧な発信より、続く発信。今日はひとことでも十分です。',
+  'お客様の「なんとなく不調」に気づけるのは、いつも会っているあなただけ。',
+  '予約が少ない日は、サロンを整える日。それも立派な仕事です。',
+  '昨日より1ミリでも良くなっていれば、ちゃんと前進です。',
+  '価格はあなたの技術と時間への敬意。堂々としていていいのです。',
+  '常連さまの「いつもの」を覚えていること、それが最高のおもてなし。',
+  '手を動かす仕事は、心が整っているときに一番輝きます。',
+  '休むことも経営のうち。今夜は早めにおやすみなさい。',
+  '新規のお客様より、目の前のお客様。リピートは信頼の積み重ねです。',
+  '「ありがとう」と言われた数だけ、このサロンの存在意義があります。',
+  'うまくいかない日は、伸びる前の準備期間。',
+  '道具の手入れは、明日の自分への贈りもの。',
+  'SNSの数字より、目の前のお客様の表情がいちばんの指標です。',
+  '悩んだら、開業した日の気持ちを思い出してみてください。',
+  '今日の予約が1件でも、その方にとっては特別な1時間です。',
+  '比べるのは他のサロンではなく、昨日の自分のサロン。',
+  '疲れているときこそ、姿勢と笑顔だけは忘れずに。',
+  'お客様の変化に最初に気づく人でいましょう。',
+  '空いた時間は、学びの時間に変えられます。10分の勉強も積もれば財産。',
+  '「紹介したいサロン」と言われたら、それが最高の広告です。',
+  '季節の変わり目は、お客様の肌も心も揺らぐとき。声かけのチャンスです。',
+  '断る勇気も大切。あなたの時間には限りがあります。',
+  '今日出会うお客様は、10年後の常連さまかもしれません。',
+  '手帳の空白は「余裕」という名の大切な在庫です。',
+  '値下げより、価値を伝える言葉をひとつ増やしましょう。',
+  '施術後の「軽くなった」の一言のために、今日も頑張れます。',
+  '雨の日に来てくださるお客様は、あなたのファンです。',
+  'できなかったことより、できたことを数えて店を閉めましょう。',
+  '技術は裏切りません。積み重ねた手数だけ、指は覚えています。',
+  '経営の不安は、書き出すと半分になります。',
+  '「あの人に会いに行く」と思われるサロンが、いちばん強い。',
+  '朝の掃除は、今日のお客様への最初のおもてなし。',
+  '焦らなくて大丈夫。木も人も、根を張る時期は見えないものです。',
+  'ひとりで抱えないこと。相談できる人がいるのは、それだけで財産です。',
+  '今月の自分に、ひとつだけ小さなご褒美を。',
+  'お客様ノートの一行が、次回の感動をつくります。',
+  '身体が資本。あなたの手と腰は、サロンいちばんの設備です。',
+  '口コミは頼むものではなく、思わず書きたくなるもの。今日もその一席を。',
+  '新しいメニューの種は、お客様の「困った」の中にあります。',
+  '看板の灯りをつける瞬間の気持ちを、大切に。',
+  '遠回りに見える丁寧さが、いちばんの近道です。',
+  '今日も、あなたのサロンを選んでくれる人がいます。',
+];
+function dailyQuote(){
+  /* 日付から決まる（毎日変わる・当日中は不変・通信不要） */
+  const d = new Date();
+  const n = d.getFullYear() * 372 + d.getMonth() * 31 + d.getDate();
+  return QUOTES[n % QUOTES.length];
+}
+
 /* ---------- 今日（ホーム） ---------- */
 async function loadToday(){
+  $('d-quote').textContent = dailyQuote();
   const d = await api('dashboard');
   $('d-bd').innerHTML = d.birthdays.length + '<small>名</small>';
   $('d-rsv').innerHTML = d.reservationsWeek.length + '<small>件</small>';
