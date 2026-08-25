@@ -178,7 +178,14 @@
         </div>
         <div class="field"><label>キャッチコピー <small>サロン名の下に出ます</small></label><input type="text" id="f-tagline"></div>
         <div class="field"><label>写真の上の一言</label><input type="text" id="f-heroline"></div>
-        <div class="field"><label>トップ写真のURL <small>空欄なら模様のまま。縦横比4:3で切り抜かれます</small></label><input type="url" id="f-heroimg" placeholder="https://…/photo.jpg"></div>
+        <div class="field"><label>トップ写真 <small>空欄なら模様のまま。縦横比4:3で切り抜かれます</small></label>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
+            <button type="button" class="btn ghost" style="padding:8px 14px" onclick="pickPhoto()">📷 写真を選ぶ</button>
+            <button type="button" class="btn ghost" style="padding:8px 14px" onclick="removePhoto()">写真を外す</button>
+            <input type="file" id="f-photo-file" accept="image/*" hidden>
+          </div>
+          <p style="margin:0 0 6px;font-size:11px;color:var(--muted)">スマホの写真をそのまま選べます（自動で軽くしてお預かりします）。設定リンクから開いている場合のみ使えます。</p>
+          <input type="url" id="f-heroimg" placeholder="https://…/photo.jpg（URLの直接指定でもOK）"></div>
       </div>
     </details>
 
@@ -603,6 +610,79 @@ async function serverSave(){
   }catch(e){
     toast(String(e.message)==='unauthorized'?'設定キーが違います':'保存できませんでした。時間をおいてお試しください');
   }
+}
+
+/* ---------- トップ写真のアップロード ----------
+   スマホの写真をそのまま選べるよう、ブラウザ内で縮小・JPEG圧縮してから
+   Worker（/photo）へ保存する。設定リンク（サロンID＋設定キー）が必要。
+   保存後は brand.heroImage に配信URL（/photo?s=…&v=…）が入り、
+   「サーバーへ保存」で確定する */
+function photoAuth(){
+  const slug=$('f-srv-slug').value.trim().toLowerCase();
+  const token=$('f-srv-token').value.trim();
+  return (SERVER_BASE&&slug&&token)?{slug,token}:null;
+}
+function pickPhoto(){
+  if(!photoAuth()){toast('写真の保存には設定リンク（サロンID＋設定キー）が必要です');return;}
+  $('f-photo-file').click();
+}
+$('f-photo-file').addEventListener('change',async e=>{
+  const file=e.target.files&&e.target.files[0];
+  e.target.value='';
+  if(!file)return;
+  if(!/^image\//.test(file.type||'')){toast('画像ファイルを選んでください');return;}
+  const auth=photoAuth();
+  if(!auth)return;
+  toast('写真を準備しています…');
+  let b64=null;
+  try{b64=await shrinkPhoto(file);}catch(err){}
+  if(!b64){toast('この写真は読み込めませんでした。別の写真をお試しください');return;}
+  try{
+    const res=await fetch(SERVER_BASE+'/photo',{
+      method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({slug:auth.slug,token:auth.token,mediaType:'image/jpeg',data:b64})
+    });
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok||!data.url) throw new Error(data.error||res.status);
+    $('f-heroimg').value=data.url;
+    onChange();
+    toast('写真を受け取りました。「サーバーへ保存」を押すと確定します 📷');
+  }catch(err){
+    toast(String(err.message)==='unauthorized'?'設定キーが違います':'アップロードできませんでした。時間をおいてお試しください');
+  }
+});
+/* 長辺1600pxに縮小し、JPEG品質を段階的に下げて base64 35万字（約250KB）以下にする */
+async function shrinkPhoto(file){
+  const src=URL.createObjectURL(file);
+  try{
+    const img=await new Promise((ok,ng)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=ng;i.src=src;});
+    const long=Math.max(img.naturalWidth,img.naturalHeight)||1;
+    const scale=Math.min(1,1600/long);
+    const cv=document.createElement('canvas');
+    cv.width=Math.max(1,Math.round(img.naturalWidth*scale));
+    cv.height=Math.max(1,Math.round(img.naturalHeight*scale));
+    cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);
+    for(let q=0.85;q>=0.45;q-=0.1){
+      const b64=cv.toDataURL('image/jpeg',q).split(',')[1];
+      if(b64&&b64.length<=350000)return b64;
+    }
+    return null;
+  }finally{URL.revokeObjectURL(src);}
+}
+function removePhoto(){
+  const cur=$('f-heroimg').value.trim();
+  if(!cur){toast('写真は設定されていません');return;}
+  $('f-heroimg').value='';
+  onChange();
+  const auth=photoAuth();
+  /* このWorkerに預けた写真なら、サーバー側からも消しておく */
+  if(auth&&cur.indexOf(SERVER_BASE+'/photo')===0){
+    fetch(SERVER_BASE+'/photo',{
+      method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({slug:auth.slug,token:auth.token,action:'delete'})
+    }).catch(()=>{});
+  }
+  toast('写真を外しました。「サーバーへ保存」で確定します');
 }
 
 /* ---------- 販売者用：新規サロン登録 ----------
