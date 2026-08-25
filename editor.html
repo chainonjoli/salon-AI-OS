@@ -118,7 +118,7 @@
   <div class="t"><b>Salon AI OS 設定エディタ</b><span>フォームに書くだけで、あなたのサロンのAIができます</span></div>
   <div class="actions">
     <button class="btn ghost" onclick="resetToBase()">初期値に戻す</button>
-    <button class="btn accent" onclick="openExport()">書き出し</button>
+    <button class="btn accent" id="btn-export" onclick="openExport()">書き出し</button>
   </div>
 </header>
 
@@ -710,6 +710,10 @@ function showRegResult(slug,setupToken,name){
   if(linkSlug)$('f-srv-slug').value=linkSlug;
   if(linkKey)$('f-srv-token').value=linkKey;
   if(linkSlug&&linkKey){
+    /* 設定リンク（サロンのオーナー）で開いたときは「書き出し」を隠す。
+       サーバー保存で完結するため不要で、押しても使い道がなく迷いのもとになる。
+       （ファイル納品用の書き出しは、リンクなしでエディタを開けば従来どおり使える） */
+    $('btn-export').style.display='none';
     /* ポータルから開かれたとき：戻る導線 */
     const bar=document.createElement('a');
     bar.href='owner.html?s='+encodeURIComponent(linkSlug)+'&k='+encodeURIComponent(linkKey);
