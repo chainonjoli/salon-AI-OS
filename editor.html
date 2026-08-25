@@ -115,6 +115,9 @@
   #owner-more{display:none;margin:6px 4px 0;font-size:12px;color:var(--muted)}
   body.owner-mode #owner-more{display:block}
   #owner-more button{text-decoration:underline;color:var(--accent-deep);font-weight:600;font-size:12px}
+  /* オーナーモード専用：セクション内の保存ボタン（色・お知らせは試してから確定するため） */
+  .owner-save{display:none}
+  body.owner-mode .owner-save{display:inline-flex;margin-top:14px}
 
   dialog#export-dlg{border:none;border-radius:18px;padding:0;max-width:640px;width:92vw;box-shadow:0 30px 80px rgba(55,50,46,.3)}
   dialog#export-dlg::backdrop{background:rgba(55,50,46,.4)}
@@ -159,6 +162,10 @@
                style="flex:2;min-width:150px;border:1px solid var(--line);border-radius:10px;padding:9px 12px;background:var(--paper);font-size:13px">
         <button class="btn ghost" style="padding:9px 16px" onclick="serverLoad()">読み込み</button>
         <button class="btn accent" style="padding:9px 16px" onclick="serverSave()">サーバーへ保存</button>
+      </div>
+      <div id="save-done" style="display:none;margin-top:10px;background:var(--sage-soft);border-radius:12px;padding:11px 14px;font-size:12.5px;color:#4E5F49">
+        ✅ 保存しました。反映まで<b>最大1分</b>ほどかかります。
+        <a id="view-site" target="_blank" rel="noopener" style="display:inline-block;margin-top:6px;font-weight:600;color:var(--accent-deep)">👀 お客様ページを見て確認する →</a>
       </div>
     </div>
 
@@ -212,6 +219,7 @@
       <div class="sec-body">
         <div class="palette" id="palette"></div>
         <p class="note">選ぶだけで全画面の配色が変わります。</p>
+        <button class="btn accent owner-save" onclick="serverSave()">この色で保存する</button>
       </div>
     </details>
 
@@ -226,11 +234,12 @@
       </div>
     </details>
 
-    <details class="sec">
-      <summary><span class="ic">📢</span><span><b>ホームのお知らせ</b><span class="d">キャンペーン・LINE案内カード</span></span><span class="chev">›</span></summary>
+    <details class="sec owner-show">
+      <summary><span class="ic">📢</span><span><b>ホームのお知らせ</b><span class="d">今週の空き枠・キャンペーンなど</span></span><span class="chev">›</span></summary>
       <div class="sec-body">
         <div class="row-list" id="cards-list"></div>
         <button class="add-row" onclick="addCard()">＋ カードを追加</button>
+        <div><button class="btn accent owner-save" onclick="serverSave()">このお知らせで保存する</button></div>
       </div>
     </details>
 
@@ -604,6 +613,7 @@ function loadPreset(){
    認証はサロンごとの設定キー（setup_token）。他のサロンには触れない。
    接続先は同梱設定の ai.endpoint（全サロン共通のWorker） */
 const SERVER_BASE=((window.SALON_CONFIG&&window.SALON_CONFIG.ai&&window.SALON_CONFIG.ai.endpoint)||'').replace(/\/$/,'');
+let serverLoaded=false;  /* 自サロンの設定を読み込み済みか（読み込み前の誤保存を防ぐ） */
 async function serverLoad(){
   const slug=$('f-srv-slug').value.trim().toLowerCase();
   if(!SERVER_BASE||!slug){toast('サロンIDを入れてください');return;}
@@ -613,13 +623,15 @@ async function serverLoad(){
     const cfg=await res.json();
     delete cfg.tenant; delete cfg.ai;
     base=cfg; fill(cfg); onChange();
+    serverLoaded=true;
     toast('「'+(cfg.brand&&cfg.brand.name||slug)+'」の設定を読み込みました');
   }catch(e){toast('読み込めませんでした。サロンIDをご確認ください');}
 }
+/* 保存に成功したら true を返す（写真の自動保存が結果を見るため） */
 async function serverSave(){
   const slug=$('f-srv-slug').value.trim().toLowerCase();
   const token=$('f-srv-token').value.trim();
-  if(!SERVER_BASE||!slug||!token){toast('サロンIDと設定キーを入れてください');return;}
+  if(!SERVER_BASE||!slug||!token){toast('サロンIDと設定キーを入れてください');return false;}
   try{
     const res=await fetch(SERVER_BASE+'/setup',{
       method:'POST',headers:{'content-type':'application/json'},
@@ -628,8 +640,13 @@ async function serverSave(){
     const data=await res.json().catch(()=>({}));
     if(!res.ok) throw new Error(data.error||res.status);
     toast('保存しました。お客様ページとAIに反映されます 🔄');
+    /* 確認導線：自分の目で反映を確かめられるように */
+    $('view-site').href=location.href.replace(/editor\.html.*$/,'')+'?s='+encodeURIComponent(slug);
+    $('save-done').style.display='block';
+    return true;
   }catch(e){
     toast(String(e.message)==='unauthorized'?'設定キーが違います':'保存できませんでした。時間をおいてお試しください');
+    return false;
   }
 }
 
@@ -667,7 +684,13 @@ $('f-photo-file').addEventListener('change',async e=>{
     if(!res.ok||!data.url) throw new Error(data.error||res.status);
     $('f-heroimg').value=data.url;
     onChange();
-    toast('写真を受け取りました。「サーバーへ保存」を押すと確定します 📷');
+    /* オーナー簡単モードでは保存まで自動で完了させる（押し忘れ防止）。
+       serverLoaded の確認は、読み込み前の状態で誤って上書き保存しないための保険 */
+    if(document.body.classList.contains('owner-mode')&&serverLoaded){
+      if(await serverSave()) toast('写真を変更しました。お客様ページに反映されます 📷');
+    }else{
+      toast('写真を受け取りました。「サーバーへ保存」を押すと確定します 📷');
+    }
   }catch(err){
     toast(String(err.message)==='unauthorized'?'設定キーが違います':'アップロードできませんでした。時間をおいてお試しください');
   }
@@ -690,7 +713,7 @@ async function shrinkPhoto(file){
     return null;
   }finally{URL.revokeObjectURL(src);}
 }
-function removePhoto(){
+async function removePhoto(){
   const cur=$('f-heroimg').value.trim();
   if(!cur){toast('写真は設定されていません');return;}
   $('f-heroimg').value='';
@@ -703,7 +726,12 @@ function removePhoto(){
       body:JSON.stringify({slug:auth.slug,token:auth.token,action:'delete'})
     }).catch(()=>{});
   }
-  toast('写真を外しました。「サーバーへ保存」で確定します');
+  /* オーナー簡単モードでは外した時点で保存まで完了させる */
+  if(document.body.classList.contains('owner-mode')&&serverLoaded){
+    if(await serverSave()) toast('写真を外しました。お客様ページには模様が表示されます');
+  }else{
+    toast('写真を外しました。「サーバーへ保存」で確定します');
+  }
 }
 
 /* ---------- 販売者用：新規サロン登録 ----------
