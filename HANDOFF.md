@@ -313,7 +313,7 @@ owner.html ──POST /crm {slug,token,action}──▶ D1 customers/tenant_sett
 |---|---|
 | B-1 | `index.html` に description / OGP / 構造化データを追加（SEO） |
 | B-2 | `editor.html` に `ai.endpoint` と `admin.pin` の入力欄を追加（今は手編集が必要） |
-| B-3 | `editor.html` / `factory.html` に `noindex` を付与（オーナー用ツールが検索に出る） |
+| B-3 | ~~`editor.html` / `factory.html` に `noindex` を付与~~ **完了（2026-08-25）**（オーナー用の全ページが `noindex, nofollow` になった） |
 | B-4 | `factory.html` の接続設定を `salon-config.js` の `ai.endpoint` と統一 |
 | B-5 | アクセス解析の導入（どの画面が見られているか分からない） |
 | B-6 | AI秘書（来店周期の見守り・フォロー下書き）のロジック実装 |
