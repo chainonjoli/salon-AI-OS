@@ -104,6 +104,18 @@
     opacity:0;pointer-events:none;transition:.25s;z-index:120;white-space:nowrap;max-width:92vw;
   }
   #toast.show{opacity:1;transform:translateX(-50%)}
+  /* ---------- オーナー簡単モード（設定リンクで開いたとき） ----------
+     購入者のオーナーには「トップ写真」と「テーマカラー」だけを見せる。
+     メニュー・Q&A等の細かい編集は「すべての設定を表示」で開ける */
+  body.owner-mode .intro,
+  body.owner-mode details.sec,
+  body.owner-mode #btn-reset{display:none}
+  body.owner-mode #server-panel,
+  body.owner-mode details.sec.owner-show{display:block}
+  #owner-more{display:none;margin:6px 4px 0;font-size:12px;color:var(--muted)}
+  body.owner-mode #owner-more{display:block}
+  #owner-more button{text-decoration:underline;color:var(--accent-deep);font-weight:600;font-size:12px}
+
   dialog#export-dlg{border:none;border-radius:18px;padding:0;max-width:640px;width:92vw;box-shadow:0 30px 80px rgba(55,50,46,.3)}
   dialog#export-dlg::backdrop{background:rgba(55,50,46,.4)}
   .dlg-in{padding:22px}
@@ -117,8 +129,8 @@
   <div class="mark">凛</div>
   <div class="t"><b>Salon AI OS 設定エディタ</b><span>フォームに書くだけで、あなたのサロンのAIができます</span></div>
   <div class="actions">
-    <button class="btn ghost" onclick="resetToBase()">初期値に戻す</button>
-    <button class="btn accent" onclick="openExport()">書き出し</button>
+    <button class="btn ghost" id="btn-reset" onclick="resetToBase()">初期値に戻す</button>
+    <button class="btn accent" id="btn-export" onclick="openExport()">書き出し</button>
   </div>
 </header>
 
@@ -178,7 +190,13 @@
         </div>
         <div class="field"><label>キャッチコピー <small>サロン名の下に出ます</small></label><input type="text" id="f-tagline"></div>
         <div class="field"><label>写真の上の一言</label><input type="text" id="f-heroline"></div>
-        <div class="field"><label>トップ写真 <small>空欄なら模様のまま。縦横比4:3で切り抜かれます</small></label>
+      </div>
+    </details>
+
+    <details class="sec owner-show" open>
+      <summary><span class="ic">📷</span><span><b>トップ写真</b><span class="d">お店の顔になる写真。いつでも変更できます</span></span><span class="chev">›</span></summary>
+      <div class="sec-body">
+        <div class="field"><label>写真 <small>空欄なら模様のまま。縦横比4:3で切り抜かれます</small></label>
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
             <button type="button" class="btn ghost" style="padding:8px 14px" onclick="pickPhoto()">📷 写真を選ぶ</button>
             <button type="button" class="btn ghost" style="padding:8px 14px" onclick="removePhoto()">写真を外す</button>
@@ -189,7 +207,7 @@
       </div>
     </details>
 
-    <details class="sec">
+    <details class="sec owner-show">
       <summary><span class="ic">🎨</span><span><b>テーマカラー</b><span class="d">サロンの雰囲気に合わせて</span></span><span class="chev">›</span></summary>
       <div class="sec-body">
         <div class="palette" id="palette"></div>
@@ -274,6 +292,9 @@
         <button class="add-row" onclick="addQuiz()">＋ 問題を追加</button>
       </div>
     </details>
+
+    <p id="owner-more">ふだんの変更はこの画面だけで大丈夫です。メニュー・料金・よくある質問なども変えたいときは
+      <button onclick="document.body.classList.remove('owner-mode')">すべての設定を表示</button> を押してください。</p>
   </div>
 
   <div class="preview-col">
@@ -790,6 +811,12 @@ function showRegResult(slug,setupToken,name){
   if(linkSlug)$('f-srv-slug').value=linkSlug;
   if(linkKey)$('f-srv-token').value=linkKey;
   if(linkSlug&&linkKey){
+    /* 設定リンク（サロンのオーナー）で開いたとき：
+       ・オーナー簡単モード＝トップ写真とテーマカラーだけを表示
+         （「すべての設定を表示」でいつでも全項目を開ける）
+       ・「書き出し」はサーバー保存で完結するオーナーには不要なので常に隠す */
+    document.body.classList.add('owner-mode');
+    $('btn-export').style.display='none';
     /* ポータルから開かれたとき：戻る導線 */
     const bar=document.createElement('a');
     bar.href='owner.html?s='+encodeURIComponent(linkSlug)+'&k='+encodeURIComponent(linkKey);
