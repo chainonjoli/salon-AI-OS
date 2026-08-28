@@ -619,7 +619,8 @@ function buildFactoryGenerateSystem(profile) {
     `2. 薬機法・医療広告に配慮し、次の表現を使わない：${FACTORY_NG.join('、')}。効果は「〜が期待できます」「〜と感じる方が多いです」の範囲で。`,
     '3. 誇大表現・断定・他店批判をしない。',
     '4. 商品情報に「注意点」があれば、ブログとメールマガジンには必ず注意書きとして含める。',
-    '5. 出力はJSONのみ。前後に説明文やコードフェンスを付けない。',
+    '5. そのまま投稿できる完成文だけを書く。「◯◯を入れてください」「〜と書く」のような穴埋め・指示文・メモを本文に残さない。価格・実績・お客様の声など与えられていない事実は、書かずに自然に成立する文にする。',
+    '6. 出力はJSONのみ。前後に説明文やコードフェンスを付けない。',
     '',
     '【出力形式（この8キーを持つJSONオブジェクト）】',
     '{' + FACTORY_KINDS.map(([k]) => `"${k}":"..."`).join(',') + '}',
@@ -798,12 +799,17 @@ async function handleFactory(body, env, cors, usageTenant) {
   if (action === 'generate') {
     const input = body.input || {};
     const theme = String(input.theme || '').slice(0, 500);
+    /* ネタ出しから来た切り口・フック（任意）。テーマ文字列に混ぜず構造で受け取る */
+    const angle = String(input.angle || '').slice(0, 300);
+    const hook = String(input.hook || '').slice(0, 140);
     const profile = input.profile || {};
     const product = input.product && typeof input.product === 'object' ? input.product : null;
     if (!theme && !product) return json({ error: 'theme or product required' }, 400, cors);
 
     const userMsg = [
       theme ? `【テーマ】\n${theme}` : '【テーマ】\n（指定なし。下の商品を主役にした発信を作る）',
+      angle ? `\n【切り口（この観点で書く）】\n${angle}` : '',
+      hook ? `\n【冒頭フック（本文の1文目はこのフックをほぼそのまま使う）】\n${hook}` : '',
       product ? '\n【商品情報（登録ナレッジ）】\n' + JSON.stringify({
         商品名: String(product.name || '').slice(0, 200),
         ブランド名: String(product.brand || '').slice(0, 200),
