@@ -186,6 +186,8 @@ index.html ──POST {dept:'reception', salon?, messages:[...]}──▶ Worker
 factory.html ──POST {dept:'factory', action:'ideas'|'generate'|'extract'|'ping', salon?}──▶ 同上
 index.html(?s=slug) ──GET /config?s=──▶ Worker ──▶ D1 tenants（設定を配信・着せ替え）
 editor.html ──POST /setup {slug,token,config}──▶ D1（購入者のセルフ保存）
+editor.html ──POST /photo {slug,token,data}──▶ D1 tenant_settings（トップ写真の保存・削除）
+index.html ──GET /photo?s=slug──▶ Worker ──▶ D1（トップ写真の公開配信。brand.heroImage が指す）
 owner.html ──POST /crm {slug,token,action}──▶ D1 customers/tenant_settings（顧客管理）
 販売者 ──POST /admin (x-admin-token)──▶ D1（テナント追加・停止・利用量）
 ```
@@ -224,6 +226,10 @@ owner.html ──POST /crm {slug,token,action}──▶ D1 customers/tenant_sett
 - フォーム編集 → 右のiframeへ即時反映（`postMessage`）
 - 編集中の内容を `localStorage` に自動下書き保存
 - **業種プリセット5種を1クリックで読み込み**（上書き前に `confirm` で確認）
+- **トップ写真のアップロード**：設定リンク（?s=&k=）で開いたとき、スマホの写真を選ぶだけで
+  ブラウザ内で縮小・JPEG圧縮（長辺1600px・base64 35万字以下）→ Worker `/photo` に保存。
+  `brand.heroImage` に配信URL（`/photo?s=…&v=…`）が入り、「サーバーへ保存」で確定。
+  保存先は D1 `tenant_settings`（`photo.hero`／`photo.heroType`）。「写真を外す」で削除
 - `salon-config.js` としてダウンロード書き出し
 - 編集できる範囲：`brand` / `theme`(パレット選択) / `contact` / `home.cards` / `menu` /
   `access` / `reserve` / `reception.greeting` / `reception.faq` / `counselor.concerns` /

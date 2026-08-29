@@ -104,6 +104,21 @@
     opacity:0;pointer-events:none;transition:.25s;z-index:120;white-space:nowrap;max-width:92vw;
   }
   #toast.show{opacity:1;transform:translateX(-50%)}
+  /* ---------- オーナー簡単モード（設定リンクで開いたとき） ----------
+     購入者のオーナーには「トップ写真」と「テーマカラー」だけを見せる。
+     メニュー・Q&A等の細かい編集は「すべての設定を表示」で開ける */
+  body.owner-mode .intro,
+  body.owner-mode details.sec,
+  body.owner-mode #btn-reset{display:none}
+  body.owner-mode #server-panel,
+  body.owner-mode details.sec.owner-show{display:block}
+  #owner-more{display:none;margin:6px 4px 0;font-size:12px;color:var(--muted)}
+  body.owner-mode #owner-more{display:block}
+  #owner-more button{text-decoration:underline;color:var(--accent-deep);font-weight:600;font-size:12px}
+  /* オーナーモード専用：セクション内の保存ボタン（色・お知らせは試してから確定するため） */
+  .owner-save{display:none}
+  body.owner-mode .owner-save{display:inline-flex;margin-top:14px}
+
   dialog#export-dlg{border:none;border-radius:18px;padding:0;max-width:640px;width:92vw;box-shadow:0 30px 80px rgba(55,50,46,.3)}
   dialog#export-dlg::backdrop{background:rgba(55,50,46,.4)}
   .dlg-in{padding:22px}
@@ -117,8 +132,8 @@
   <div class="mark">凛</div>
   <div class="t"><b>Salon AI OS 設定エディタ</b><span>フォームに書くだけで、あなたのサロンのAIができます</span></div>
   <div class="actions">
-    <button class="btn ghost" onclick="resetToBase()">初期値に戻す</button>
-    <button class="btn accent" onclick="openExport()">書き出し</button>
+    <button class="btn ghost" id="btn-reset" onclick="resetToBase()">初期値に戻す</button>
+    <button class="btn accent" id="btn-export" onclick="openExport()">書き出し</button>
   </div>
 </header>
 
@@ -147,6 +162,10 @@
                style="flex:2;min-width:150px;border:1px solid var(--line);border-radius:10px;padding:9px 12px;background:var(--paper);font-size:13px">
         <button class="btn ghost" style="padding:9px 16px" onclick="serverLoad()">読み込み</button>
         <button class="btn accent" style="padding:9px 16px" onclick="serverSave()">サーバーへ保存</button>
+      </div>
+      <div id="save-done" style="display:none;margin-top:10px;background:var(--sage-soft);border-radius:12px;padding:11px 14px;font-size:12.5px;color:#4E5F49">
+        ✅ 保存しました。反映まで<b>最大1分</b>ほどかかります。
+        <a id="view-site" target="_blank" rel="noopener" style="display:inline-block;margin-top:6px;font-weight:600;color:var(--accent-deep)">👀 お客様ページを見て確認する →</a>
       </div>
     </div>
 
@@ -178,15 +197,29 @@
         </div>
         <div class="field"><label>キャッチコピー <small>サロン名の下に出ます</small></label><input type="text" id="f-tagline"></div>
         <div class="field"><label>写真の上の一言</label><input type="text" id="f-heroline"></div>
-        <div class="field"><label>トップ写真のURL <small>空欄なら模様のまま。縦横比4:3で切り抜かれます</small></label><input type="url" id="f-heroimg" placeholder="https://…/photo.jpg"></div>
       </div>
     </details>
 
-    <details class="sec">
+    <details class="sec owner-show" open>
+      <summary><span class="ic">📷</span><span><b>トップ写真</b><span class="d">お店の顔になる写真。いつでも変更できます</span></span><span class="chev">›</span></summary>
+      <div class="sec-body">
+        <div class="field"><label>写真 <small>空欄なら模様のまま。縦横比4:3で切り抜かれます</small></label>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
+            <button type="button" class="btn ghost" style="padding:8px 14px" onclick="pickPhoto()">📷 写真を選ぶ</button>
+            <button type="button" class="btn ghost" style="padding:8px 14px" onclick="removePhoto()">写真を外す</button>
+            <input type="file" id="f-photo-file" accept="image/*" hidden>
+          </div>
+          <p style="margin:0 0 6px;font-size:11px;color:var(--muted)">スマホの写真をそのまま選べます（自動で軽くしてお預かりします）。設定リンクから開いている場合のみ使えます。</p>
+          <input type="url" id="f-heroimg" placeholder="https://…/photo.jpg（URLの直接指定でもOK）"></div>
+      </div>
+    </details>
+
+    <details class="sec owner-show">
       <summary><span class="ic">🎨</span><span><b>テーマカラー</b><span class="d">サロンの雰囲気に合わせて</span></span><span class="chev">›</span></summary>
       <div class="sec-body">
         <div class="palette" id="palette"></div>
         <p class="note">選ぶだけで全画面の配色が変わります。</p>
+        <button class="btn accent owner-save" onclick="serverSave()">この色で保存する</button>
       </div>
     </details>
 
@@ -201,11 +234,12 @@
       </div>
     </details>
 
-    <details class="sec">
-      <summary><span class="ic">📢</span><span><b>ホームのお知らせ</b><span class="d">キャンペーン・LINE案内カード</span></span><span class="chev">›</span></summary>
+    <details class="sec owner-show">
+      <summary><span class="ic">📢</span><span><b>ホームのお知らせ</b><span class="d">今週の空き枠・キャンペーンなど</span></span><span class="chev">›</span></summary>
       <div class="sec-body">
         <div class="row-list" id="cards-list"></div>
         <button class="add-row" onclick="addCard()">＋ カードを追加</button>
+        <div><button class="btn accent owner-save" onclick="serverSave()">このお知らせで保存する</button></div>
       </div>
     </details>
 
@@ -267,6 +301,9 @@
         <button class="add-row" onclick="addQuiz()">＋ 問題を追加</button>
       </div>
     </details>
+
+    <p id="owner-more">ふだんの変更はこの画面だけで大丈夫です。メニュー・料金・よくある質問なども変えたいときは
+      <button onclick="document.body.classList.remove('owner-mode')">すべての設定を表示</button> を押してください。</p>
   </div>
 
   <div class="preview-col">
@@ -576,6 +613,7 @@ function loadPreset(){
    認証はサロンごとの設定キー（setup_token）。他のサロンには触れない。
    接続先は同梱設定の ai.endpoint（全サロン共通のWorker） */
 const SERVER_BASE=((window.SALON_CONFIG&&window.SALON_CONFIG.ai&&window.SALON_CONFIG.ai.endpoint)||'').replace(/\/$/,'');
+let serverLoaded=false;  /* 自サロンの設定を読み込み済みか（読み込み前の誤保存を防ぐ） */
 async function serverLoad(){
   const slug=$('f-srv-slug').value.trim().toLowerCase();
   if(!SERVER_BASE||!slug){toast('サロンIDを入れてください');return;}
@@ -585,13 +623,15 @@ async function serverLoad(){
     const cfg=await res.json();
     delete cfg.tenant; delete cfg.ai;
     base=cfg; fill(cfg); onChange();
+    serverLoaded=true;
     toast('「'+(cfg.brand&&cfg.brand.name||slug)+'」の設定を読み込みました');
   }catch(e){toast('読み込めませんでした。サロンIDをご確認ください');}
 }
+/* 保存に成功したら true を返す（写真の自動保存が結果を見るため） */
 async function serverSave(){
   const slug=$('f-srv-slug').value.trim().toLowerCase();
   const token=$('f-srv-token').value.trim();
-  if(!SERVER_BASE||!slug||!token){toast('サロンIDと設定キーを入れてください');return;}
+  if(!SERVER_BASE||!slug||!token){toast('サロンIDと設定キーを入れてください');return false;}
   try{
     const res=await fetch(SERVER_BASE+'/setup',{
       method:'POST',headers:{'content-type':'application/json'},
@@ -600,8 +640,97 @@ async function serverSave(){
     const data=await res.json().catch(()=>({}));
     if(!res.ok) throw new Error(data.error||res.status);
     toast('保存しました。お客様ページとAIに反映されます 🔄');
+    /* 確認導線：自分の目で反映を確かめられるように */
+    $('view-site').href=location.href.replace(/editor\.html.*$/,'')+'?s='+encodeURIComponent(slug);
+    $('save-done').style.display='block';
+    return true;
   }catch(e){
     toast(String(e.message)==='unauthorized'?'設定キーが違います':'保存できませんでした。時間をおいてお試しください');
+    return false;
+  }
+}
+
+/* ---------- トップ写真のアップロード ----------
+   スマホの写真をそのまま選べるよう、ブラウザ内で縮小・JPEG圧縮してから
+   Worker（/photo）へ保存する。設定リンク（サロンID＋設定キー）が必要。
+   保存後は brand.heroImage に配信URL（/photo?s=…&v=…）が入り、
+   「サーバーへ保存」で確定する */
+function photoAuth(){
+  const slug=$('f-srv-slug').value.trim().toLowerCase();
+  const token=$('f-srv-token').value.trim();
+  return (SERVER_BASE&&slug&&token)?{slug,token}:null;
+}
+function pickPhoto(){
+  if(!photoAuth()){toast('写真の保存には設定リンク（サロンID＋設定キー）が必要です');return;}
+  $('f-photo-file').click();
+}
+$('f-photo-file').addEventListener('change',async e=>{
+  const file=e.target.files&&e.target.files[0];
+  e.target.value='';
+  if(!file)return;
+  if(!/^image\//.test(file.type||'')){toast('画像ファイルを選んでください');return;}
+  const auth=photoAuth();
+  if(!auth)return;
+  toast('写真を準備しています…');
+  let b64=null;
+  try{b64=await shrinkPhoto(file);}catch(err){}
+  if(!b64){toast('この写真は読み込めませんでした。別の写真をお試しください');return;}
+  try{
+    const res=await fetch(SERVER_BASE+'/photo',{
+      method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({slug:auth.slug,token:auth.token,mediaType:'image/jpeg',data:b64})
+    });
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok||!data.url) throw new Error(data.error||res.status);
+    $('f-heroimg').value=data.url;
+    onChange();
+    /* オーナー簡単モードでは保存まで自動で完了させる（押し忘れ防止）。
+       serverLoaded の確認は、読み込み前の状態で誤って上書き保存しないための保険 */
+    if(document.body.classList.contains('owner-mode')&&serverLoaded){
+      if(await serverSave()) toast('写真を変更しました。お客様ページに反映されます 📷');
+    }else{
+      toast('写真を受け取りました。「サーバーへ保存」を押すと確定します 📷');
+    }
+  }catch(err){
+    toast(String(err.message)==='unauthorized'?'設定キーが違います':'アップロードできませんでした。時間をおいてお試しください');
+  }
+});
+/* 長辺1600pxに縮小し、JPEG品質を段階的に下げて base64 35万字（約250KB）以下にする */
+async function shrinkPhoto(file){
+  const src=URL.createObjectURL(file);
+  try{
+    const img=await new Promise((ok,ng)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=ng;i.src=src;});
+    const long=Math.max(img.naturalWidth,img.naturalHeight)||1;
+    const scale=Math.min(1,1600/long);
+    const cv=document.createElement('canvas');
+    cv.width=Math.max(1,Math.round(img.naturalWidth*scale));
+    cv.height=Math.max(1,Math.round(img.naturalHeight*scale));
+    cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);
+    for(let q=0.85;q>=0.45;q-=0.1){
+      const b64=cv.toDataURL('image/jpeg',q).split(',')[1];
+      if(b64&&b64.length<=350000)return b64;
+    }
+    return null;
+  }finally{URL.revokeObjectURL(src);}
+}
+async function removePhoto(){
+  const cur=$('f-heroimg').value.trim();
+  if(!cur){toast('写真は設定されていません');return;}
+  $('f-heroimg').value='';
+  onChange();
+  const auth=photoAuth();
+  /* このWorkerに預けた写真なら、サーバー側からも消しておく */
+  if(auth&&cur.indexOf(SERVER_BASE+'/photo')===0){
+    fetch(SERVER_BASE+'/photo',{
+      method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({slug:auth.slug,token:auth.token,action:'delete'})
+    }).catch(()=>{});
+  }
+  /* オーナー簡単モードでは外した時点で保存まで完了させる */
+  if(document.body.classList.contains('owner-mode')&&serverLoaded){
+    if(await serverSave()) toast('写真を外しました。お客様ページには模様が表示されます');
+  }else{
+    toast('写真を外しました。「サーバーへ保存」で確定します');
   }
 }
 
@@ -710,6 +839,12 @@ function showRegResult(slug,setupToken,name){
   if(linkSlug)$('f-srv-slug').value=linkSlug;
   if(linkKey)$('f-srv-token').value=linkKey;
   if(linkSlug&&linkKey){
+    /* 設定リンク（サロンのオーナー）で開いたとき：
+       ・オーナー簡単モード＝トップ写真とテーマカラーだけを表示
+         （「すべての設定を表示」でいつでも全項目を開ける）
+       ・「書き出し」はサーバー保存で完結するオーナーには不要なので常に隠す */
+    document.body.classList.add('owner-mode');
+    $('btn-export').style.display='none';
     /* ポータルから開かれたとき：戻る導線 */
     const bar=document.createElement('a');
     bar.href='owner.html?s='+encodeURIComponent(linkSlug)+'&k='+encodeURIComponent(linkKey);

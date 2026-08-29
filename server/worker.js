@@ -473,6 +473,96 @@ async function handleSetup(body, env, cors) {
   return json({ ok: true, slug }, 200, cors);
 }
 
+/* =========================================================
+   サロン写真（トップ写真）の保存・配信
+   ---------------------------------------------------------
+   オーナーがエディタから写真をアップロードして随時変更できるようにする。
+   保存先は D1 tenant_settings（photo.hero＝base64／photo.heroType＝MIME）。
+   エディタ側で長辺1600px・JPEGに圧縮してから送る想定（base64で35万字上限）。
+   GETは公開配信（お客様ページの背景画像として読まれる）。
+   ========================================================= */
+const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
+/* 配信キャッシュ（60秒）。tenantCacheと同じ思想でD1読み取りを減らす */
+const photoCache = new Map();  // slug -> { p, at }
+
+async function loadPhoto(env, slugRaw) {
+  const slug = String(slugRaw || '').toLowerCase();
+  if (!env.DB || !SLUG_RE.test(slug)) return null;
+  const hit = photoCache.get(slug);
+  if (hit && Date.now() - hit.at < 60_000) return hit.p;
+  let p = null;
+  try {
+    await ensureCrmTables(env);
+    const t = await env.DB.prepare(
+      'SELECT id FROM tenants WHERE slug = ?1 AND deleted_at IS NULL'
+    ).bind(slug).first();
+    if (t) {
+      const { results } = await env.DB.prepare(
+        "SELECT key, value FROM tenant_settings WHERE tenant_id = ?1 AND key IN ('photo.hero','photo.heroType')"
+      ).bind(t.id).all();
+      const m = Object.fromEntries(results.map(r => [r.key, r.value]));
+      if (m['photo.hero']) p = { data: m['photo.hero'], type: PHOTO_TYPES.includes(m['photo.heroType']) ? m['photo.heroType'] : 'image/jpeg' };
+    }
+  } catch (e) {
+    console.log('d1 photo error', String(e));
+  }
+  photoCache.set(slug, { p, at: Date.now() });
+  if (photoCache.size > 100) photoCache.clear();
+  return p;
+}
+
+async function handlePhoto(request, url, env, cors) {
+  /* GET /photo?s=slug … 写真そのものを配信（公開情報。お客様ページに出る写真） */
+  if (request.method === 'GET') {
+    const p = await loadPhoto(env, url.searchParams.get('s'));
+    if (!p) return json({ error: 'not found' }, 404, cors);
+    const bin = Uint8Array.from(atob(p.data), c => c.charCodeAt(0));
+    return new Response(bin, {
+      headers: {
+        'content-type': p.type,
+        /* 更新時はエディタが ?v= を変えたURLを設定に書くため、長めに効かせてよい */
+        'cache-control': 'public, max-age=86400',
+        ...cors,
+      },
+    });
+  }
+
+  /* POST /photo … 保存・削除（オーナー専用。設定キーで認証） */
+  if (request.method !== 'POST') return json({ error: 'GET or POST only' }, 405, cors);
+  if (!env.DB) return json({ error: 'no database' }, 503, cors);
+  let body;
+  try { body = await request.json(); } catch { return json({ error: 'invalid json' }, 400, cors); }
+  const t = await authTenant(env, body.slug, body.token);
+  if (!t) return json({ error: 'unauthorized' }, 401, cors);
+  if (t.status !== 'active') return json({ error: 'unavailable' }, 403, cors);
+  await ensureCrmTables(env);
+
+  if (body.action === 'delete') {
+    await env.DB.prepare(
+      "DELETE FROM tenant_settings WHERE tenant_id = ?1 AND key IN ('photo.hero','photo.heroType')"
+    ).bind(t.id).run();
+    photoCache.delete(t.slug);
+    return json({ ok: true }, 200, cors);
+  }
+
+  /* 既定は保存（action:'set'） */
+  const type = String(body.mediaType || '');
+  const data = String(body.data || '');
+  if (!PHOTO_TYPES.includes(type)) return json({ error: 'unsupported file type' }, 400, cors);
+  if (!data || data.length > 500_000) return json({ error: 'file too large' }, 400, cors);
+  if (!/^[A-Za-z0-9+/]+=*$/.test(data)) return json({ error: 'invalid data' }, 400, cors);
+  const put = (key, value) => env.DB.prepare(
+    `INSERT INTO tenant_settings (tenant_id, key, value) VALUES (?1, ?2, ?3)
+     ON CONFLICT(tenant_id, key) DO UPDATE SET value=?3, updated_at=datetime('now')`
+  ).bind(t.id, key, value).run();
+  await put('photo.hero', data);
+  await put('photo.heroType', type);
+  photoCache.delete(t.slug);
+  /* ?v= はキャッシュ避け。エディタはこのURLを brand.heroImage に設定して保存する */
+  return json({ ok: true, url: url.origin + '/photo?s=' + t.slug + '&v=' + Date.now() }, 200, cors);
+}
+
 /* 設定キーの生成（authTenant/handleSetupの「16文字以上」を満たす64桁hex） */
 function newSetupToken() {
   return crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
@@ -910,6 +1000,18 @@ export default {
       } catch (e) {
         console.log('admin error', String(e));
         return json({ error: 'admin failed' }, 500, cors);
+      }
+    }
+
+    /* ---------- サロン写真（GET=公開配信／POST=設定キー認証で保存・削除） ----------
+       CSSの背景画像としての読み込みは Origin ヘッダが付かないため、
+       オリジン検証より前に処理する（POSTの本体防御は設定キー認証） */
+    if (url.pathname === '/photo') {
+      try {
+        return await handlePhoto(request, url, env, cors);
+      } catch (e) {
+        console.log('photo error', String(e));
+        return json({ error: 'photo failed' }, 500, cors);
       }
     }
 
