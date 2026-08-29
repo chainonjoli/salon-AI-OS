@@ -207,6 +207,7 @@
         <label class="lbl" for="theme-input">1. テーマ <small>（自由に書いてください）</small></label>
         <textarea id="theme-input" class="big" placeholder="例：乾燥肌向けの保湿ケアのご紹介"></textarea>
         <div class="hint-chips" id="theme-hints"></div>
+        <div id="idea-note" hidden style="margin:8px 0 0;padding:9px 12px;background:var(--accent-soft);border-radius:10px;font-size:11.5px;line-height:1.6"></div>
 
         <span class="lbl">2. 商品を選ぶ <small>（なくてもOK）</small></span>
         <div class="prod-chips" id="create-prods"></div>
@@ -519,12 +520,26 @@ function renderIdeas(ideas){
     '</div>').join('');
   list._ideas=ideas;
 }
+/* 選んだネタ。タイトルだけをテーマ欄に入れ、切り口・フックは構造のままAIへ渡す。
+   （説明文をテーマ欄に混ぜると、そのまま本文へ紛れ込んで「コピペできない下書き」になるため） */
+let selectedIdea=null;
 function useIdea(n){
   const i=document.getElementById('idea-list')._ideas[n];
-  document.getElementById('theme-input').value=i.title+(i.angle?'\n'+i.angle:'')+(i.hook?'\n冒頭フック案：'+i.hook:'');
-  toast('テーマに入れました。「この内容でつくる」を押してください');
+  selectedIdea={title:i.title||'', angle:i.angle||'', hook:i.hook||''};
+  document.getElementById('theme-input').value=selectedIdea.title;
+  const note=document.getElementById('idea-note');
+  note.textContent='💡 このネタの切り口とフック案も一緒にAIへ渡します'+
+    (selectedIdea.hook?'：「'+selectedIdea.hook+'」':'');
+  note.hidden=false;
+  toast('ネタをセットしました。「この内容でつくる」を押してください');
   document.getElementById('theme-input').scrollIntoView({behavior:'smooth',block:'center'});
 }
+/* テーマを手で書き換えたら、内容がずれるためネタの切り口・フックは外す */
+document.getElementById('theme-input').addEventListener('input',()=>{
+  if(!selectedIdea)return;
+  selectedIdea=null;
+  document.getElementById('idea-note').hidden=true;
+});
 
 let currentResult=null;   /* 表示中の履歴アイテム */
 let resultBack='f-create';
@@ -548,7 +563,13 @@ async function startGenerate(){
       mode='ai';
     }catch(e){
       console.warn('ai generate failed', e);
-      toast('AIにつながらなかったため、お試しモードで作成しました');
+      /* AI接続済みで失敗したときは、お試しテンプレで代用しない。
+         テンプレ文が「AIの完成文」として保存されると紛らわしいため、
+         はっきり伝えて再試行してもらう */
+      btn.disabled=false;
+      loading.classList.remove('show');
+      toast('AIにつながりませんでした。少し時間をおいて、もう一度お試しください');
+      return;
     }
   }
   if(!contents){
@@ -583,6 +604,8 @@ async function aiGenerate(theme, product){
       dept:'factory', action:'generate', salon: PORTAL.slug || undefined,
       input:{
         theme: theme||'',
+        angle: selectedIdea?selectedIdea.angle:'',
+        hook: selectedIdea?selectedIdea.hook:'',
         product: product ? {
           name:product.name, brand:product.brand, features:product.features,
           effects:product.effects, usage:product.usage, target:product.target, cautions:product.cautions
