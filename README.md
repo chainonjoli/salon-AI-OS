@@ -107,6 +107,6 @@ AIは毎回ゼロから考えません。サロンのコンセプト・文体・
 
 | Phase | 内容 | 状態 |
 |---|---|---|
-| **Phase 1** | AI受付／AI美容相談／FAQ／予約導線／LINE導線／管理画面 | 🚧 画面・体験は完成。AI受付の本接続コードあり（`server/`・設置手順は docs/06）。`salon-config.js` の `ai.endpoint` が空ならデモモード、設定すると実AIで応答 |
+| **Phase 1** | AI受付／AI美容相談／FAQ／予約導線／LINE導線／管理画面 | ✅ **AI受付は本番稼働中（2026-08-08〜）**。Gemini（gemini-3.6-flash）＋Cloudflare Worker（Git連携・`wrangler.jsonc`）で接続し、`check.html` の受け入れ検査に合格。管理画面の「保存」実装のみ残 |
 | **Phase 2** | カルテ／SNS投稿生成／商品管理／分析 | 🚧 **SNS投稿生成＋商品管理は AIコンテンツファクトリー（`factory.html`）として実装済み**。テーマ1つで8種のコンテンツを一括生成、商品はPDF・写真からAI取り込み可。AI未接続でもお試しモードで動作 |
 | **Phase 3** | 予約システム／決済／EC／外部API連携 | 設計のみ（docs/05） |

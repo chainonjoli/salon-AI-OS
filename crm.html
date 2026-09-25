@@ -1,0 +1,12 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>オーナーポータルへ移動中…</title>
+<!-- 顧客フォロー管理はオーナーポータル（owner.html）に統合されました。
+     旧管理リンクのブックマークが生き続けるよう、パラメータごと転送します。 -->
+<script>location.replace('owner.html' + location.search + location.hash);</script>
+<p style="font-family:sans-serif;padding:40px 24px;font-size:14px">
+  オーナーポータルへ移動しています…
+  自動で移動しない場合は <a href="owner.html" id="l">こちら</a> をタップしてください。
+</p>
+<script>document.getElementById('l').href = 'owner.html' + location.search + location.hash;</script>

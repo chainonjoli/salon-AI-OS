@@ -16,13 +16,30 @@
                          Claudeの鍵があればClaude、なければGemini
      MODEL             … 任意。Claudeのモデル。既定 claude-opus-5
      GEMINI_MODEL      … 任意。Geminiのモデル。既定 gemini-2.5-flash
+                         （本番推奨 gemini-3.6-flash。受付は thinkingLevel:'low' で
+                          思考トークンを抑えてコストを管理する）
      ALLOWED_ORIGIN    … 任意。サイトのURL（例 https://example.github.io）
                          未設定なら全オリジン許可（開発用）
+     RATE_PER_MIN      … 任意。1分あたりの同一IP上限（既定 8）※従来経路用
+     RATE_PER_DAY      … 任意。1日あたりの全体上限（既定 500）※従来経路用
+                         （月1,000円前後で運用するなら 60 程度を推奨。
+                          Googleの予算アラートは通知のみで自動停止しないため、
+                          実際に止める役はこの上限が担う）
+     ADMIN_TOKEN       … 管理API（/admin）の合言葉。Secretとして登録。
+                         未設定なら管理APIは無効（503）
+
+   マルチテナント（購入者ごとのサロン）:
+     D1バインディング DB（wrangler.jsonc）＋ server/schema.sql が前提。
+     ?s=slug 付きのアクセスはD1のテナント設定で動き、
+     テナント別の上限（tenants.rate_per_*）と利用量記録（usage_daily）が効く。
+     D1未設定・slug無しなら従来どおり下の直書きナレッジで動く。
+     運用手順は docs/07_tenants.md を参照。
    ========================================================= */
 
-/* ---------- サロンナレッジ ----------
-   salon-config.js の内容と同期させてください
-   （将来はナレッジDBから自動読込に移行します） */
+/* ---------- サロンナレッジ（フォールバック用） ----------
+   D1にテナント登録済みなら ?s=slug 側はD1から読む。
+   この直書きは「slug無しの従来経路」と「D1障害時」の保険。
+   salon-config.js の内容と同期させてください */
 const SALON = {
   brand: {
     name: 'chainonjoli',
@@ -52,6 +69,7 @@ const SALON = {
     { q: '施術に痛みはありますか？', a: 'リラクゼーションを重視しており、強い痛みはありません。眠ってしまう方も多いです。' },
     { q: '施術後にメイクをして帰れますか？', a: 'はい。ドレッサーをご用意しています。ご希望の方にはメイクアップサービスもあります。' },
     { q: '敏感肌でも受けられますか？', a: 'カウンセリングでお肌に合わせて商材や力加減を調整します。事前のパッチテストもご相談いただけます。' },
+    { q: 'どんな服装で行けばいいですか？', a: '当日はサロンで施術着にお着替えいただきますので、特別な服装は必要ありません。普段着のままお気軽にお越しくださいね。' },
     { q: 'どのくらいのペースで通うのが理想ですか？', a: '最初は2週間に1回、安定してきたら月1回程度のメンテナンスがおすすめです。' },
   ],
   style: {
@@ -61,11 +79,13 @@ const SALON = {
   },
 };
 
-/* ---------- システムプロンプト ---------- */
-function buildSystem() {
+/* ---------- システムプロンプト ----------
+   salon には SALON（直書き）か configToKnowledge() の結果が入る。
+   どのテナントでも「そのサロンの情報だけ」が文脈に載るのが分離の要 */
+function buildSystem(salon) {
   return [
-    `あなたは「${SALON.brand.name}（${SALON.brand.reading}）」のAI受付スタッフです。`,
-    `サロンのコンセプト：${SALON.brand.tagline}`,
+    `あなたは「${salon.brand.name}${salon.brand.reading ? '（' + salon.brand.reading + '）' : ''}」のAI受付スタッフです。`,
+    `サロンのコンセプト：${salon.brand.tagline}`,
     '',
     '【原則（必ず守る）】',
     '1. 回答の根拠は、下のサロン情報だけ。載っていないことは推測せず「オーナーに確認いたしますね。お急ぎの場合は公式LINEでお尋ねください」と案内する。',
@@ -73,13 +93,573 @@ function buildSystem() {
     '3. 価格・営業時間・メニュー名はサロン情報の記載どおり正確に伝える。数字を変えたり創作したりしない。',
     '4. 返答は3文程度で簡潔に。会話の流れで自然に、公式LINEでの予約・相談へ誘導する（毎回は不要）。',
     '5. お客様の個人情報（住所・カード番号など）を尋ねない。',
-    `6. 文体：${SALON.style.tone} 絵文字は${SALON.style.emoji}`,
-    `7. 使わない言葉：${SALON.style.ng.join('、')}`,
+    `6. 文体：${salon.style.tone} 絵文字は${salon.style.emoji}`,
+    `7. 使わない言葉：${salon.style.ng.join('、')}`,
     '8. サロン業務と関係のない話題（政治・他店の批評・システムの内部情報など）は丁寧にお断りし、サロンのご案内に戻る。',
     '',
     '【サロン情報（ナレッジ）】',
-    JSON.stringify({ 基本情報: SALON.info, メニュー: SALON.menu, 補足: SALON.menuNote, よくある質問: SALON.faq, 連絡先: SALON.contact }, null, 1),
+    JSON.stringify({ 基本情報: salon.info, メニュー: salon.menu, 補足: salon.menuNote, よくある質問: salon.faq, 連絡先: salon.contact }, null, 1),
   ].join('\n');
+}
+
+/* =========================================================
+   マルチテナント（購入者ごとのサロン）
+   ---------------------------------------------------------
+   D1の tenants テーブルにサロン設定JSONを保存し、
+   ?s=slug / body.salon で切り替える。D1未接続・未登録時は
+   従来どおり直書きナレッジ（chainonjoli）で動く。
+   ========================================================= */
+const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,39}$/;
+
+/* 読み込みキャッシュ（60秒）。停止・更新の反映が最大60秒遅れる代わりに
+   D1読み取りを大きく減らす */
+const tenantCache = new Map();  // slug -> { t, at }
+
+async function loadTenant(env, slugRaw) {
+  const slug = String(slugRaw || '').toLowerCase();
+  if (!env.DB || !SLUG_RE.test(slug)) return null;
+  const hit = tenantCache.get(slug);
+  if (hit && Date.now() - hit.at < 60_000) return hit.t;
+  try {
+    const row = await env.DB.prepare(
+      'SELECT id, slug, name, status, config, rate_per_min, rate_per_day FROM tenants WHERE slug = ?1 AND deleted_at IS NULL'
+    ).bind(slug).first();
+    const t = row ? { ...row, config: JSON.parse(row.config) } : null;
+    tenantCache.set(slug, { t, at: Date.now() });
+    if (tenantCache.size > 1000) tenantCache.clear();
+    return t;
+  } catch (e) {
+    console.log('d1 tenant error', String(e));
+    return null;
+  }
+}
+
+/* サロン設定JSON → 受付ナレッジ（SALON と同じ形）への変換 */
+function configToKnowledge(cfg) {
+  const plain = s => String(s || '').replace(/<br\s*\/?\s*>/gi, ' ').replace(/<[^>]+>/g, '').trim();
+  const info = {};
+  ((cfg.access && cfg.access.rows) || []).forEach(r => {
+    if (r && r[0]) info[plain(r[0])] = plain(r[1]);
+  });
+  if (cfg.access && cfg.access.cancel) info['予約の変更・キャンセル'] = plain(cfg.access.cancel.body);
+  if (cfg.reserve && cfg.reserve.disclaimer) info['予約について'] = plain(cfg.reserve.disclaimer);
+  const menu = [];
+  ((cfg.menu && cfg.menu.sections) || []).forEach(sec =>
+    (sec.items || []).forEach(m => menu.push({ name: m.name, desc: m.desc, price: m.price })));
+  const menuNote = [
+    cfg.menu && cfg.menu.highlight ? plain(cfg.menu.highlight.title) + '：' + plain(cfg.menu.highlight.body) : '',
+    plain(cfg.menu && cfg.menu.note),
+  ].filter(Boolean).join(' ');
+  const faq = [];
+  Object.entries((cfg.reception && cfg.reception.faq) || {}).forEach(([q, a]) => {
+    if (typeof a === 'string') faq.push({ q, a: plain(a) });
+  });
+  return {
+    brand: {
+      name: (cfg.brand && cfg.brand.name) || 'サロン',
+      reading: (cfg.brand && cfg.brand.reading) || '',
+      tagline: (cfg.brand && cfg.brand.tagline) || '',
+    },
+    contact: {
+      lineUrl: (cfg.contact && cfg.contact.lineUrl) || '',
+      telDisplay: (cfg.contact && cfg.contact.telDisplay) || '',
+    },
+    info, menu, menuNote, faq,
+    /* 文体・NGワードは当面全テナント共通の既定値（テナント別化はM2で） */
+    style: SALON.style,
+  };
+}
+
+/* お客様ページへ配るための設定（秘匿すべきものを除いたもの） */
+function publicConfig(tenant, workerOrigin) {
+  const cfg = JSON.parse(JSON.stringify(tenant.config));
+  delete cfg.admin;                        // PINは配信しない
+  cfg.ai = { endpoint: workerOrigin };     // AI接続先はこのWorker自身
+  cfg.tenant = { slug: tenant.slug };      // フロントが会話リクエストに添える
+  return cfg;
+}
+
+/* テナント別レート制限：分あたりはメモリ（簡易）、日あたりはD1（確実） */
+async function tenantLimited(env, tenant, ip) {
+  const key = tenant.slug + '|' + ip;
+  const now = Date.now();
+  const hits = (ipHits.get(key) || []).filter(t => now - t < 60_000);
+  if (hits.length >= (tenant.rate_per_min || 5)) return '少し時間をおいてお試しください';
+  hits.push(now);
+  ipHits.set(key, hits);
+  if (ipHits.size > 5000) ipHits.clear();
+  try {
+    const day = new Date().toISOString().slice(0, 10);
+    const row = await env.DB.prepare(
+      'SELECT requests FROM usage_daily WHERE tenant_id = ?1 AND day = ?2'
+    ).bind(tenant.id, day).first();
+    if (row && row.requests >= (tenant.rate_per_day || 60)) return '本日の受付上限に達しました';
+  } catch (e) {
+    console.log('d1 limit error', String(e));
+  }
+  return null;
+}
+
+/* AI利用量をテナント別に記録（失敗しても応答は止めない） */
+async function recordUsage(env, tenant, usage) {
+  if (!env.DB || !tenant || !usage) return;
+  try {
+    const day = new Date().toISOString().slice(0, 10);
+    await env.DB.prepare(
+      `INSERT INTO usage_daily (tenant_id, day, requests, input_tokens, output_tokens)
+       VALUES (?1, ?2, 1, ?3, ?4)
+       ON CONFLICT(tenant_id, day) DO UPDATE SET
+         requests = requests + 1, input_tokens = input_tokens + ?3, output_tokens = output_tokens + ?4`
+    ).bind(tenant.id, day, usage.input | 0, usage.output | 0).run();
+  } catch (e) {
+    console.log('d1 usage error', String(e));
+  }
+}
+
+/* ---------- 共通：設定キー（setup_token）によるテナント認証 ----------
+   一致したテナントの行を返す。以降のSQLは必ずこの id を WHERE に使うこと */
+async function authTenant(env, slugRaw, token) {
+  if (!env.DB) return null;
+  const slug = String(slugRaw || '').toLowerCase();
+  if (!SLUG_RE.test(slug) || String(token || '').length < 16) return null;
+  const row = await env.DB.prepare(
+    'SELECT id, slug, status, setup_token FROM tenants WHERE slug = ?1 AND deleted_at IS NULL'
+  ).bind(slug).first();
+  if (!row || !row.setup_token || row.setup_token !== String(token)) return null;
+  return row;
+}
+
+/* =========================================================
+   顧客フォロー管理（CRM）
+   ---------------------------------------------------------
+   オーナー専用の管理API（crm.html が使う）。全テナント標準搭載。
+   ・認証は設定キー（setup_token）。tenant_id で完全分離
+   ・お客様向けAI（buildSystem / configToKnowledge）からは
+     一切参照しない＝顧客情報がAIに渡る経路が存在しない
+   ・テーブルは初回アクセス時に自動作成（手動SQL不要）
+   ========================================================= */
+let crmReady = false;
+async function ensureCrmTables(env) {
+  if (crmReady) return;
+  const ddl = [
+    `CREATE TABLE IF NOT EXISTS customers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tenant_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      kana TEXT,
+      birthday_month INTEGER,
+      birthday_day INTEGER,
+      birthday_year INTEGER,
+      last_visit_date TEXT,
+      next_reservation_date TEXT,
+      next_reservation_time TEXT,
+      visit_count INTEGER NOT NULL DEFAULT 0,
+      note TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      deleted_at TEXT
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_customers_tenant ON customers (tenant_id, deleted_at)`,
+    `CREATE INDEX IF NOT EXISTS idx_customers_birthday ON customers (tenant_id, birthday_month, birthday_day)`,
+    `CREATE TABLE IF NOT EXISTS tenant_settings (
+      tenant_id INTEGER NOT NULL,
+      key TEXT NOT NULL,
+      value TEXT NOT NULL,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (tenant_id, key)
+    )`,
+  ];
+  for (const sql of ddl) await env.DB.prepare(sql).run();
+  crmReady = true;
+}
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const TIME_RE = /^\d{2}:\d{2}$/;
+
+function daysBetween(from, to) {
+  return Math.floor((Date.parse(to) - Date.parse(from)) / 86400000);
+}
+
+async function crmSettings(env, tenantId) {
+  const { results } = await env.DB.prepare(
+    "SELECT key, value FROM tenant_settings WHERE tenant_id = ?1 AND key IN ('crm.followDays','crm.dormantDays')"
+  ).bind(tenantId).all();
+  const m = Object.fromEntries(results.map(r => [r.key, Number(r.value)]));
+  return { followDays: m['crm.followDays'] || 60, dormantDays: m['crm.dormantDays'] || 120 };
+}
+
+/* 判定はサーバー側に集約する（将来のAI文面生成・通知が同じ判定を使うため）
+   ・予約あり＝次回予約日が「今日」以降（過去日の消し忘れは予約なし扱い）
+   ・フォロー候補＝経過>=followDays かつ 予約なし かつ 経過<dormantDays
+   ・休眠客＝経過>=dormantDays かつ 予約なし */
+function decorate(c, today, st) {
+  const hasReservation = !!(c.next_reservation_date && c.next_reservation_date >= today);
+  const daysSince = c.last_visit_date ? daysBetween(c.last_visit_date, today) : null;
+  let segment = 'normal';
+  if (daysSince != null && !hasReservation) {
+    if (daysSince >= st.dormantDays) segment = 'dormant';
+    else if (daysSince >= st.followDays) segment = 'follow';
+  }
+  return Object.assign({}, c, { hasReservation, daysSince, segment });
+}
+
+async function crmAll(env, tenantId) {
+  const { results } = await env.DB.prepare(
+    `SELECT id, name, kana, birthday_month, birthday_day, birthday_year,
+            last_visit_date, next_reservation_date, next_reservation_time,
+            visit_count, note, updated_at
+     FROM customers WHERE tenant_id = ?1 AND deleted_at IS NULL
+     ORDER BY COALESCE(kana, name)`
+  ).bind(tenantId).all();
+  return results;
+}
+
+async function handleCrm(body, env, cors) {
+  if (!env.DB) return json({ error: 'no database' }, 503, cors);
+  const t = await authTenant(env, body.slug, body.token);
+  if (!t) return json({ error: 'unauthorized' }, 401, cors);
+  if (t.status !== 'active') return json({ error: 'unavailable' }, 403, cors);
+  await ensureCrmTables(env);
+
+  /* 「今日」はオーナーの端末の日付を使う（UTCとのズレで経過日数が狂わないように） */
+  const today = DATE_RE.test(String(body.today || '')) ? body.today : new Date().toISOString().slice(0, 10);
+  const st = await crmSettings(env, t.id);
+  const a = body.action;
+
+  if (a === 'dashboard') {
+    const all = (await crmAll(env, t.id)).map(c => decorate(c, today, st));
+    const month = Number(today.slice(5, 7));
+    const in7 = new Date(Date.parse(today) + 7 * 86400000).toISOString().slice(0, 10);
+    const monthEnd = today.slice(0, 7) + '-31';
+    const byDate = (x, y) => (x.next_reservation_date + (x.next_reservation_time || '')) < (y.next_reservation_date + (y.next_reservation_time || '')) ? -1 : 1;
+    const reserved = all.filter(c => c.hasReservation).sort(byDate);
+    return json({
+      today, settings: st, total: all.length,
+      birthdays: all.filter(c => c.birthday_month === month)
+                    .sort((x, y) => (x.birthday_day || 32) - (y.birthday_day || 32)),
+      reservationsToday: reserved.filter(c => c.next_reservation_date === today),
+      reservationsWeek: reserved.filter(c => c.next_reservation_date <= in7),
+      reservationsMonth: reserved.filter(c => c.next_reservation_date <= monthEnd),
+      follow: all.filter(c => c.segment === 'follow').sort((x, y) => y.daysSince - x.daysSince),
+      dormant: all.filter(c => c.segment === 'dormant').sort((x, y) => y.daysSince - x.daysSince),
+    }, 200, cors);
+  }
+
+  if (a === 'list') {
+    let list = (await crmAll(env, t.id)).map(c => decorate(c, today, st));
+    const month = Number(today.slice(5, 7));
+    const f = body.filter;
+    if (f === 'birthday') list = list.filter(c => c.birthday_month === month).sort((x, y) => (x.birthday_day || 32) - (y.birthday_day || 32));
+    if (f === 'reserved') list = list.filter(c => c.hasReservation);
+    if (f === 'unreserved') list = list.filter(c => !c.hasReservation);
+    if (f === 'follow') list = list.filter(c => c.segment === 'follow');
+    if (f === 'dormant') list = list.filter(c => c.segment === 'dormant');
+    const q = String(body.q || '').trim();
+    if (q) list = list.filter(c => (c.name || '').includes(q) || (c.kana || '').includes(q));
+    return json({ customers: list, settings: st, today }, 200, cors);
+  }
+
+  if (a === 'get') {
+    const row = await env.DB.prepare(
+      'SELECT * FROM customers WHERE id = ?1 AND tenant_id = ?2 AND deleted_at IS NULL'
+    ).bind(Number(body.id), t.id).first();
+    if (!row) return json({ error: 'not found' }, 404, cors);
+    return json({ customer: decorate(row, today, st), settings: st }, 200, cors);
+  }
+
+  if (a === 'upsert') {
+    const c = body.customer || {};
+    const name = String(c.name || '').trim().slice(0, 100);
+    if (!name) return json({ error: 'name required' }, 400, cors);
+    const intOr = (v, min, max) => { const n = Number(v); return Number.isInteger(n) && n >= min && n <= max ? n : null; };
+    const dateOr = v => DATE_RE.test(String(v || '')) ? v : null;
+    const vals = {
+      name,
+      kana: String(c.kana || '').trim().slice(0, 100) || null,
+      birthday_month: intOr(c.birthday_month, 1, 12),
+      birthday_day: intOr(c.birthday_day, 1, 31),
+      birthday_year: intOr(c.birthday_year, 1900, 2100),
+      last_visit_date: dateOr(c.last_visit_date),
+      next_reservation_date: dateOr(c.next_reservation_date),
+      next_reservation_time: TIME_RE.test(String(c.next_reservation_time || '')) ? c.next_reservation_time : null,
+      visit_count: intOr(c.visit_count, 0, 100000) || 0,
+      note: String(c.note || '').slice(0, 2000) || null,
+    };
+    if (c.id) {
+      const r = await env.DB.prepare(
+        `UPDATE customers SET name=?1, kana=?2, birthday_month=?3, birthday_day=?4, birthday_year=?5,
+           last_visit_date=?6, next_reservation_date=?7, next_reservation_time=?8,
+           visit_count=?9, note=?10, updated_at=datetime('now')
+         WHERE id=?11 AND tenant_id=?12 AND deleted_at IS NULL`
+      ).bind(vals.name, vals.kana, vals.birthday_month, vals.birthday_day, vals.birthday_year,
+             vals.last_visit_date, vals.next_reservation_date, vals.next_reservation_time,
+             vals.visit_count, vals.note, Number(c.id), t.id).run();
+      return json({ ok: true, id: Number(c.id) }, 200, cors);
+    }
+    const r = await env.DB.prepare(
+      `INSERT INTO customers (tenant_id, name, kana, birthday_month, birthday_day, birthday_year,
+         last_visit_date, next_reservation_date, next_reservation_time, visit_count, note)
+       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)`
+    ).bind(t.id, vals.name, vals.kana, vals.birthday_month, vals.birthday_day, vals.birthday_year,
+           vals.last_visit_date, vals.next_reservation_date, vals.next_reservation_time,
+           vals.visit_count, vals.note).run();
+    let newId = r && r.meta ? r.meta.last_row_id : null;
+    if (newId == null) {
+      const idRow = await env.DB.prepare(
+        'SELECT id FROM customers WHERE tenant_id = ?1 ORDER BY id DESC LIMIT 1'
+      ).bind(t.id).first();
+      newId = idRow ? idRow.id : null;
+    }
+    return json({ ok: true, id: newId }, 200, cors);
+  }
+
+  if (a === 'visit') {
+    /* 「来店を記録」：最終来店＝今日、来店回数＋1（1タップ運用のため） */
+    await env.DB.prepare(
+      `UPDATE customers SET last_visit_date=?1, visit_count=visit_count+1, updated_at=datetime('now')
+       WHERE id=?2 AND tenant_id=?3 AND deleted_at IS NULL`
+    ).bind(today, Number(body.id), t.id).run();
+    return json({ ok: true }, 200, cors);
+  }
+
+  if (a === 'delete') {
+    await env.DB.prepare(
+      "UPDATE customers SET deleted_at=datetime('now'), updated_at=datetime('now') WHERE id=?1 AND tenant_id=?2"
+    ).bind(Number(body.id), t.id).run();
+    return json({ ok: true }, 200, cors);
+  }
+
+  if (a === 'settings') {
+    const upd = async (key, v, min, max) => {
+      const n = Number(v);
+      if (!Number.isInteger(n) || n < min || n > max) return;
+      await env.DB.prepare(
+        `INSERT INTO tenant_settings (tenant_id, key, value) VALUES (?1, ?2, ?3)
+         ON CONFLICT(tenant_id, key) DO UPDATE SET value=?3, updated_at=datetime('now')`
+      ).bind(t.id, key, String(n)).run();
+    };
+    if (body.followDays != null) await upd('crm.followDays', body.followDays, 7, 365);
+    if (body.dormantDays != null) await upd('crm.dormantDays', body.dormantDays, 14, 730);
+    const cur = await crmSettings(env, t.id);
+    if (cur.followDays >= cur.dormantDays) {
+      /* フォロー基準が休眠基準以上は矛盾するため、休眠側を自動でずらす */
+      await upd('crm.dormantDays', cur.followDays * 2, 14, 730);
+    }
+    return json({ settings: await crmSettings(env, t.id) }, 200, cors);
+  }
+
+  return json({ error: 'unknown action' }, 400, cors);
+}
+
+/* 購入者のセルフ設定保存。setup_token が一致したテナントの config だけを更新する */
+async function handleSetup(body, env, cors) {
+  if (!env.DB) return json({ error: 'no database' }, 503, cors);
+  const slug = String(body.slug || '').toLowerCase();
+  const token = String(body.token || '');
+  if (!SLUG_RE.test(slug) || token.length < 16) return json({ error: 'unauthorized' }, 401, cors);
+  const row = await env.DB.prepare(
+    'SELECT id, setup_token, status FROM tenants WHERE slug = ?1 AND deleted_at IS NULL'
+  ).bind(slug).first();
+  if (!row || !row.setup_token || row.setup_token !== token) return json({ error: 'unauthorized' }, 401, cors);
+  if (row.status !== 'active') return json({ error: 'unavailable' }, 403, cors);
+  if (!body.config || typeof body.config !== 'object') return json({ error: 'config required' }, 400, cors);
+  const cfg = JSON.parse(JSON.stringify(body.config));
+  delete cfg.ai; delete cfg.admin; delete cfg.tenant;   // 鍵・PIN類はD1に保存しない
+  if (JSON.stringify(cfg).length > 200_000) return json({ error: 'config too large' }, 400, cors);
+  const name = String((cfg.brand && cfg.brand.name) || slug).slice(0, 100);
+  await env.DB.prepare(
+    "UPDATE tenants SET config = ?2, name = ?3, updated_at = datetime('now') WHERE id = ?1"
+  ).bind(row.id, JSON.stringify(cfg), name).run();
+  tenantCache.delete(slug);
+  return json({ ok: true, slug }, 200, cors);
+}
+
+/* =========================================================
+   サロン写真（トップ写真）の保存・配信
+   ---------------------------------------------------------
+   オーナーがエディタから写真をアップロードして随時変更できるようにする。
+   保存先は D1 tenant_settings（photo.hero＝base64／photo.heroType＝MIME）。
+   エディタ側で長辺1600px・JPEGに圧縮してから送る想定（base64で35万字上限）。
+   GETは公開配信（お客様ページの背景画像として読まれる）。
+   ========================================================= */
+const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
+/* 配信キャッシュ（60秒）。tenantCacheと同じ思想でD1読み取りを減らす */
+const photoCache = new Map();  // slug -> { p, at }
+
+async function loadPhoto(env, slugRaw) {
+  const slug = String(slugRaw || '').toLowerCase();
+  if (!env.DB || !SLUG_RE.test(slug)) return null;
+  const hit = photoCache.get(slug);
+  if (hit && Date.now() - hit.at < 60_000) return hit.p;
+  let p = null;
+  try {
+    await ensureCrmTables(env);
+    const t = await env.DB.prepare(
+      'SELECT id FROM tenants WHERE slug = ?1 AND deleted_at IS NULL'
+    ).bind(slug).first();
+    if (t) {
+      const { results } = await env.DB.prepare(
+        "SELECT key, value FROM tenant_settings WHERE tenant_id = ?1 AND key IN ('photo.hero','photo.heroType')"
+      ).bind(t.id).all();
+      const m = Object.fromEntries(results.map(r => [r.key, r.value]));
+      if (m['photo.hero']) p = { data: m['photo.hero'], type: PHOTO_TYPES.includes(m['photo.heroType']) ? m['photo.heroType'] : 'image/jpeg' };
+    }
+  } catch (e) {
+    console.log('d1 photo error', String(e));
+  }
+  photoCache.set(slug, { p, at: Date.now() });
+  if (photoCache.size > 100) photoCache.clear();
+  return p;
+}
+
+async function handlePhoto(request, url, env, cors) {
+  /* GET /photo?s=slug … 写真そのものを配信（公開情報。お客様ページに出る写真） */
+  if (request.method === 'GET') {
+    const p = await loadPhoto(env, url.searchParams.get('s'));
+    if (!p) return json({ error: 'not found' }, 404, cors);
+    const bin = Uint8Array.from(atob(p.data), c => c.charCodeAt(0));
+    return new Response(bin, {
+      headers: {
+        'content-type': p.type,
+        /* 更新時はエディタが ?v= を変えたURLを設定に書くため、長めに効かせてよい */
+        'cache-control': 'public, max-age=86400',
+        ...cors,
+      },
+    });
+  }
+
+  /* POST /photo … 保存・削除（オーナー専用。設定キーで認証） */
+  if (request.method !== 'POST') return json({ error: 'GET or POST only' }, 405, cors);
+  if (!env.DB) return json({ error: 'no database' }, 503, cors);
+  let body;
+  try { body = await request.json(); } catch { return json({ error: 'invalid json' }, 400, cors); }
+  const t = await authTenant(env, body.slug, body.token);
+  if (!t) return json({ error: 'unauthorized' }, 401, cors);
+  if (t.status !== 'active') return json({ error: 'unavailable' }, 403, cors);
+  await ensureCrmTables(env);
+
+  if (body.action === 'delete') {
+    await env.DB.prepare(
+      "DELETE FROM tenant_settings WHERE tenant_id = ?1 AND key IN ('photo.hero','photo.heroType')"
+    ).bind(t.id).run();
+    photoCache.delete(t.slug);
+    return json({ ok: true }, 200, cors);
+  }
+
+  /* 既定は保存（action:'set'） */
+  const type = String(body.mediaType || '');
+  const data = String(body.data || '');
+  if (!PHOTO_TYPES.includes(type)) return json({ error: 'unsupported file type' }, 400, cors);
+  if (!data || data.length > 500_000) return json({ error: 'file too large' }, 400, cors);
+  if (!/^[A-Za-z0-9+/]+=*$/.test(data)) return json({ error: 'invalid data' }, 400, cors);
+  const put = (key, value) => env.DB.prepare(
+    `INSERT INTO tenant_settings (tenant_id, key, value) VALUES (?1, ?2, ?3)
+     ON CONFLICT(tenant_id, key) DO UPDATE SET value=?3, updated_at=datetime('now')`
+  ).bind(t.id, key, value).run();
+  await put('photo.hero', data);
+  await put('photo.heroType', type);
+  photoCache.delete(t.slug);
+  /* ?v= はキャッシュ避け。エディタはこのURLを brand.heroImage に設定して保存する */
+  return json({ ok: true, url: url.origin + '/photo?s=' + t.slug + '&v=' + Date.now() }, 200, cors);
+}
+
+/* 設定キーの生成（authTenant/handleSetupの「16文字以上」を満たす64桁hex） */
+function newSetupToken() {
+  return crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
+}
+
+/* 管理API本体（呼び出し元でトークン検証済み） */
+async function handleAdmin(body, env, cors) {
+  if (!env.DB) return json({ error: 'no database' }, 503, cors);
+  const a = body.action;
+
+  if (a === 'list') {
+    const { results } = await env.DB.prepare(
+      'SELECT slug, name, status, rate_per_min, rate_per_day, created_at, updated_at FROM tenants WHERE deleted_at IS NULL ORDER BY id'
+    ).all();
+    return json({ tenants: results }, 200, cors);
+  }
+
+  if (a === 'get') {
+    const slug = String(body.slug || '').toLowerCase();
+    if (!SLUG_RE.test(slug)) return json({ error: 'invalid slug' }, 400, cors);
+    const row = await env.DB.prepare(
+      'SELECT slug, name, status, config, setup_token, rate_per_min, rate_per_day, created_at, updated_at FROM tenants WHERE slug = ?1 AND deleted_at IS NULL'
+    ).bind(slug).first();
+    if (!row) return json({ error: 'not found' }, 404, cors);
+    return json({ tenant: { ...row, config: JSON.parse(row.config) } }, 200, cors);
+  }
+
+  if (a === 'upsert') {
+    const slug = String(body.slug || '').toLowerCase();
+    if (!SLUG_RE.test(slug)) return json({ error: 'invalid slug' }, 400, cors);
+    if (!body.config || typeof body.config !== 'object') return json({ error: 'config required' }, 400, cors);
+    const cfg = JSON.parse(JSON.stringify(body.config));
+    delete cfg.ai; delete cfg.admin; delete cfg.tenant;   // 鍵・PIN類はD1に保存しない
+    const name = String(body.name || (cfg.brand && cfg.brand.name) || slug).slice(0, 100);
+    await env.DB.prepare(
+      `INSERT INTO tenants (slug, name, config, rate_per_min, rate_per_day, setup_token)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+       ON CONFLICT(slug) DO UPDATE SET
+         name = ?2, config = ?3, rate_per_min = ?4, rate_per_day = ?5,
+         updated_at = datetime('now'), deleted_at = NULL`
+    ).bind(slug, name, JSON.stringify(cfg),
+           Number(body.ratePerMin || 5), Number(body.ratePerDay || 60),
+           newSetupToken()).run();
+    tenantCache.delete(slug);
+    return json({ ok: true, slug }, 200, cors);
+  }
+
+  if (a === 'rotate') {
+    /* 設定キーの再発行（旧キーは即時無効）。upsertではキーは変わらないため、
+       漏洩時・渡し直し時はこのアクションを使う */
+    const slug = String(body.slug || '').toLowerCase();
+    if (!SLUG_RE.test(slug)) return json({ error: 'invalid slug' }, 400, cors);
+    const token = newSetupToken();
+    const r = await env.DB.prepare(
+      "UPDATE tenants SET setup_token = ?2, updated_at = datetime('now') WHERE slug = ?1 AND deleted_at IS NULL"
+    ).bind(slug, token).run();
+    if (r && r.meta && r.meta.changes === 0) return json({ error: 'not found' }, 404, cors);
+    tenantCache.delete(slug);
+    return json({ ok: true, slug, setup_token: token }, 200, cors);
+  }
+
+  if (a === 'status') {
+    const slug = String(body.slug || '').toLowerCase();
+    if (!SLUG_RE.test(slug)) return json({ error: 'invalid slug' }, 400, cors);
+    if (!['active', 'suspended'].includes(body.status)) return json({ error: 'invalid status' }, 400, cors);
+    const r = await env.DB.prepare(
+      "UPDATE tenants SET status = ?2, updated_at = datetime('now') WHERE slug = ?1 AND deleted_at IS NULL"
+    ).bind(slug, body.status).run();
+    if (r && r.meta && r.meta.changes === 0) return json({ error: 'not found' }, 404, cors);
+    tenantCache.delete(slug);
+    return json({ ok: true, slug, status: body.status }, 200, cors);
+  }
+
+  if (a === 'delete') {
+    const slug = String(body.slug || '').toLowerCase();
+    if (!SLUG_RE.test(slug)) return json({ error: 'invalid slug' }, 400, cors);
+    const r = await env.DB.prepare(
+      "UPDATE tenants SET deleted_at = datetime('now'), status = 'suspended' WHERE slug = ?1"
+    ).bind(slug).run();
+    if (r && r.meta && r.meta.changes === 0) return json({ error: 'not found' }, 404, cors);
+    tenantCache.delete(slug);
+    return json({ ok: true, slug }, 200, cors);
+  }
+
+  if (a === 'usage') {
+    const month = String(body.month || new Date().toISOString().slice(0, 7));
+    const { results } = await env.DB.prepare(
+      `SELECT t.slug, t.name, SUM(u.requests) AS requests,
+              SUM(u.input_tokens) AS input_tokens, SUM(u.output_tokens) AS output_tokens
+       FROM usage_daily u JOIN tenants t ON t.id = u.tenant_id
+       WHERE u.day LIKE ?1 GROUP BY u.tenant_id ORDER BY requests DESC`
+    ).bind(month + '%').all();
+    return json({ month, usage: results }, 200, cors);
+  }
+
+  return json({ error: 'unknown action' }, 400, cors);
 }
 
 /* =========================================================
@@ -130,7 +710,8 @@ function buildFactoryGenerateSystem(profile) {
     `2. 薬機法・医療広告に配慮し、次の表現を使わない：${FACTORY_NG.join('、')}。効果は「〜が期待できます」「〜と感じる方が多いです」の範囲で。`,
     '3. 誇大表現・断定・他店批判をしない。',
     '4. 商品情報に「注意点」があれば、ブログとメールマガジンには必ず注意書きとして含める。',
-    '5. 出力はJSONのみ。前後に説明文やコードフェンスを付けない。',
+    '5. そのまま投稿できる完成文だけを書く。「◯◯を入れてください」「〜と書く」のような穴埋め・指示文・メモを本文に残さない。価格・実績・お客様の声など与えられていない事実は、書かずに自然に成立する文にする。',
+    '6. 出力はJSONのみ。前後に説明文やコードフェンスを付けない。',
     '',
     '【出力形式（この8キーを持つJSONオブジェクト）】',
     '{' + FACTORY_KINDS.map(([k]) => `"${k}":"..."`).join(',') + '}',
@@ -138,6 +719,28 @@ function buildFactoryGenerateSystem(profile) {
     '【各キーの仕様】',
     ...FACTORY_KINDS.map(([k, spec]) => `- ${k} … ${spec}`),
   ].join('\n');
+}
+
+/* ---------- ネタ出し（お題 → 投稿ネタの提案） ---------- */
+function buildIdeasSystem(profile, month) {
+  return [
+    'あなたは小規模サロン・店舗のSNS企画のプロフェッショナルです。',
+    'お店の「中の人」の相談役として、投稿ネタ（企画案）を提案します。',
+    '',
+    '【お店のプロフィール】',
+    factoryProfileText(profile),
+    month ? `【いまの月】${month}月（季節感をネタに活かす）` : '',
+    '',
+    '【必ず守るルール】',
+    '1. お題に沿って投稿ネタを8個提案する。お題が無ければ、季節と業種から自由に8個。',
+    '2. 切り口を混ぜること：豆知識／よくある質問への回答／お客様の変化・声の紹介／メニュー・商品の紹介／季節のケア／お店の日常・人柄／ご予約やお知らせ／体験・企画もの。同じ切り口を3つ以上並べない。',
+    '3. お店の事実（価格・効果・実在のお客様の声・空き状況など）を創作しない。実情が必要な部分は「（◯◯を入れてください）」と空欄で示す。',
+    `4. 次の表現を使わない：${FACTORY_NG.join('、')}。`,
+    '5. 出力はJSONのみ。前後に説明文やコードフェンスを付けない。',
+    '',
+    '【出力形式】',
+    '{"ideas":[{"title":"ネタのタイトル（15字前後）","angle":"何をどう伝えるかの切り口説明（1〜2文）","media":"リール／フィード投稿／ストーリーズ／LINE配信／ブログ のいずれか","hook":"投稿冒頭の1行フック案"}]}',
+  ].filter(Boolean).join('\n');
 }
 
 const EXTRACT_FIELDS = ['name', 'brand', 'features', 'effects', 'usage', 'target', 'cautions'];
@@ -196,7 +799,8 @@ async function callAI(env, { system, messages, maxTokens, lowEffort }) {
     if (data.stop_reason === 'refusal') throw new Error('refusal');
     const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
     if (!text) throw new Error('empty');
-    return text;
+    const u = data.usage || {};
+    return { text, usage: { input: u.input_tokens || 0, output: u.output_tokens || 0 } };
   }
 
   /* ---- Gemini（Google AI Studio・無料枠あり） ---- */
@@ -208,9 +812,17 @@ async function callAI(env, { system, messages, maxTokens, lowEffort }) {
           ? { text: b.text }
           : { inline_data: { mime_type: b.source.media_type, data: b.source.data } }),
   }));
-  const body = { contents, generationConfig: { maxOutputTokens: maxTokens } };
-  if (system) body.system_instruction = { parts: [{ text: system }] };
   const model = env.GEMINI_MODEL || 'gemini-2.5-flash';
+  const body = { contents, generationConfig: { maxOutputTokens: maxTokens } };
+  if (lowEffort) {
+    /* 受付は短文でよいので「考えすぎ」を抑える。
+       Geminiは思考トークンも出力として課金されるため、ここがコスト管理の要。
+       3系は thinkingLevel、2.5系は thinkingBudget と指定方法が異なる */
+    body.generationConfig.thinkingConfig = model.startsWith('gemini-2')
+      ? { thinkingBudget: 0 }
+      : { thinkingLevel: 'low' };
+  }
+  if (system) body.system_instruction = { parts: [{ text: system }] };
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
@@ -222,12 +834,18 @@ async function callAI(env, { system, messages, maxTokens, lowEffort }) {
     throw new Error('upstream ' + res.status);
   }
   const data = await res.json();
+  /* トークン消費の実測用（Cloudflareのログで月額の答え合わせができる） */
+  if (data.usageMetadata) console.log('gemini usage', JSON.stringify(data.usageMetadata));
   if (data.promptFeedback && data.promptFeedback.blockReason) throw new Error('refusal');
   const cand = (data.candidates || [])[0];
   if (cand && cand.finishReason === 'SAFETY') throw new Error('refusal');
   const text = ((cand && cand.content && cand.content.parts) || []).map(p => p.text || '').join('\n').trim();
   if (!text) throw new Error('empty');
-  return text;
+  const u = data.usageMetadata || {};
+  return { text, usage: {
+    input: u.promptTokenCount || 0,
+    output: (u.candidatesTokenCount || 0) + (u.thoughtsTokenCount || 0),  // 思考トークンも出力課金
+  } };
 }
 
 /* モデル出力からJSONを取り出す（コードフェンス等が混ざっても救う） */
@@ -238,7 +856,7 @@ function parseJsonLoose(text) {
   return JSON.parse(text.slice(s, e + 1));
 }
 
-async function handleFactory(body, env, cors) {
+async function handleFactory(body, env, cors, usageTenant) {
   const action = body.action;
 
   if (action === 'ping') {
@@ -246,15 +864,43 @@ async function handleFactory(body, env, cors) {
     return json({ ok: !!provider, provider }, 200, cors);
   }
 
+  if (action === 'ideas') {
+    const input = body.input || {};
+    const topic = String(input.topic || '').slice(0, 300);
+    const profile = input.profile || {};
+    const m = Number(input.month);
+    const month = m >= 1 && m <= 12 ? m : null;
+    const { text, usage } = await callAI(env, {
+      system: buildIdeasSystem(profile, month),
+      messages: [{ role: 'user', content: topic ? `【お題】\n${topic}` : '【お題】\n（指定なし。季節と業種に合わせて自由に）' }],
+      maxTokens: 4096,
+    });
+    await recordUsage(env, usageTenant, usage);
+    const raw = parseJsonLoose(text);
+    const ideas = (Array.isArray(raw.ideas) ? raw.ideas : []).slice(0, 10).map(i => ({
+      title: String(i.title || '').slice(0, 80),
+      angle: String(i.angle || '').slice(0, 300),
+      media: String(i.media || '').slice(0, 30),
+      hook: String(i.hook || '').slice(0, 140),
+    })).filter(i => i.title);
+    if (!ideas.length) return json({ error: 'ideas failed' }, 502, cors);
+    return json({ ideas }, 200, cors);
+  }
+
   if (action === 'generate') {
     const input = body.input || {};
     const theme = String(input.theme || '').slice(0, 500);
+    /* ネタ出しから来た切り口・フック（任意）。テーマ文字列に混ぜず構造で受け取る */
+    const angle = String(input.angle || '').slice(0, 300);
+    const hook = String(input.hook || '').slice(0, 140);
     const profile = input.profile || {};
     const product = input.product && typeof input.product === 'object' ? input.product : null;
     if (!theme && !product) return json({ error: 'theme or product required' }, 400, cors);
 
     const userMsg = [
       theme ? `【テーマ】\n${theme}` : '【テーマ】\n（指定なし。下の商品を主役にした発信を作る）',
+      angle ? `\n【切り口（この観点で書く）】\n${angle}` : '',
+      hook ? `\n【冒頭フック（本文の1文目はこのフックをほぼそのまま使う）】\n${hook}` : '',
       product ? '\n【商品情報（登録ナレッジ）】\n' + JSON.stringify({
         商品名: String(product.name || '').slice(0, 200),
         ブランド名: String(product.brand || '').slice(0, 200),
@@ -267,11 +913,12 @@ async function handleFactory(body, env, cors) {
       '\n上記をもとに、8種類すべてのコンテンツをJSONで出力してください。',
     ].join('\n');
 
-    const text = await callAI(env, {
+    const { text, usage } = await callAI(env, {
       system: buildFactoryGenerateSystem(profile),
       messages: [{ role: 'user', content: userMsg }],
       maxTokens: 8192,
     });
+    await recordUsage(env, usageTenant, usage);
     const raw = parseJsonLoose(text);
     const contents = {};
     for (const [k] of FACTORY_KINDS) contents[k] = String(raw[k] || '').trim();
@@ -291,10 +938,11 @@ async function handleFactory(body, env, cors) {
       ? { type: 'document', source: { type: 'base64', media_type: mediaType, data } }
       : { type: 'image', source: { type: 'base64', media_type: mediaType, data } };
 
-    const text = await callAI(env, {
+    const { text, usage } = await callAI(env, {
       messages: [{ role: 'user', content: [block, { type: 'text', text: EXTRACT_PROMPT }] }],
       maxTokens: 2048,
     });
+    await recordUsage(env, usageTenant, usage);
     const raw = parseJsonLoose(text);
     const product = {};
     for (const f of EXTRACT_FIELDS) product[f] = String(raw[f] || '').trim().slice(0, 1000);
@@ -305,16 +953,117 @@ async function handleFactory(body, env, cors) {
   return json({ error: 'unknown action' }, 400, cors);
 }
 
+/* ---------- 使いすぎ防止（簡易レート制限） ----------
+   同一IP: 1分あたり RATE_PER_MIN 回（既定8）
+   全体  : 1日あたり RATE_PER_DAY 回（既定500）
+   ※メモリ上のカウンタのため厳密ではありませんが、
+     暴走・いたずらによる高額請求の第一防壁になります。
+     併せてAnthropic Console側で月額上限も必ず設定してください。 */
+const ipHits = new Map();   // ip -> [timestamps]
+let dayCount = 0;
+let dayStamp = '';
+
+function rateLimited(ip, env) {
+  const now = Date.now();
+  const today = new Date().toISOString().slice(0, 10);
+  if (dayStamp !== today) { dayStamp = today; dayCount = 0; }
+  if (dayCount >= Number(env.RATE_PER_DAY || 500)) return '本日の受付上限に達しました';
+
+  const windowMs = 60_000;
+  const hits = (ipHits.get(ip) || []).filter(t => now - t < windowMs);
+  if (hits.length >= Number(env.RATE_PER_MIN || 8)) return '少し時間をおいてお試しください';
+  hits.push(now);
+  ipHits.set(ip, hits);
+  if (ipHits.size > 5000) ipHits.clear();  // メモリ保護
+  dayCount++;
+  return null;
+}
+
 /* ---------- Worker本体 ---------- */
 export default {
   async fetch(request, env) {
+    const url = new URL(request.url);
     const origin = env.ALLOWED_ORIGIN || '*';
     const cors = {
       'Access-Control-Allow-Origin': origin,
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'content-type',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'content-type, x-admin-token',
     };
     if (request.method === 'OPTIONS') return new Response(null, { headers: cors });
+
+    /* ---------- 管理API（販売者専用） ----------
+       x-admin-token が資格情報なので、オリジン検証より先に処理する
+       （将来の管理画面からも、緊急時のcurlからも使えるように） */
+    if (url.pathname === '/admin') {
+      if (request.method !== 'POST') return json({ error: 'POST only' }, 405, cors);
+      if (!env.ADMIN_TOKEN) return json({ error: 'admin disabled' }, 503, cors);
+      if ((request.headers.get('x-admin-token') || '') !== env.ADMIN_TOKEN) {
+        return json({ error: 'unauthorized' }, 401, cors);
+      }
+      let abody;
+      try { abody = await request.json(); } catch { return json({ error: 'invalid json' }, 400, cors); }
+      try {
+        return await handleAdmin(abody, env, cors);
+      } catch (e) {
+        console.log('admin error', String(e));
+        return json({ error: 'admin failed' }, 500, cors);
+      }
+    }
+
+    /* ---------- サロン写真（GET=公開配信／POST=設定キー認証で保存・削除） ----------
+       CSSの背景画像としての読み込みは Origin ヘッダが付かないため、
+       オリジン検証より前に処理する（POSTの本体防御は設定キー認証） */
+    if (url.pathname === '/photo') {
+      try {
+        return await handlePhoto(request, url, env, cors);
+      } catch (e) {
+        console.log('photo error', String(e));
+        return json({ error: 'photo failed' }, 500, cors);
+      }
+    }
+
+    /* オリジン検証（ALLOWED_ORIGIN設定時のみ厳格化） */
+    if (env.ALLOWED_ORIGIN) {
+      const reqOrigin = request.headers.get('Origin') || '';
+      if (reqOrigin !== env.ALLOWED_ORIGIN) {
+        return json({ error: 'origin not allowed' }, 403, cors);
+      }
+    }
+
+    /* ---------- テナント設定の配信（index.html の ?s= が使う） ---------- */
+    if (request.method === 'GET' && url.pathname === '/config') {
+      const t = await loadTenant(env, url.searchParams.get('s'));
+      if (!t) return json({ error: 'not found' }, 404, cors);
+      if (t.status !== 'active') return json({ error: 'unavailable' }, 403, cors);
+      return json(publicConfig(t, url.origin), 200, cors);
+    }
+
+    /* ---------- 顧客フォロー管理（crm.html が使う・オーナー専用） ----------
+       認証はテナント別の設定キー。tenant_id で完全分離 */
+    if (request.method === 'POST' && url.pathname === '/crm') {
+      let cbody;
+      try { cbody = await request.json(); } catch { return json({ error: 'invalid json' }, 400, cors); }
+      try {
+        return await handleCrm(cbody, env, cors);
+      } catch (e) {
+        console.log('crm error', String(e));
+        return json({ error: 'crm failed' }, 500, cors);
+      }
+    }
+
+    /* ---------- 購入者のセルフ設定保存（editor.html の「保存」が使う） ----------
+       認証はテナント別の setup_token。自分のサロンの設定しか触れない */
+    if (request.method === 'POST' && url.pathname === '/setup') {
+      let sbody;
+      try { sbody = await request.json(); } catch { return json({ error: 'invalid json' }, 400, cors); }
+      try {
+        return await handleSetup(sbody, env, cors);
+      } catch (e) {
+        console.log('setup error', String(e));
+        return json({ error: 'setup failed' }, 500, cors);
+      }
+    }
+
     if (request.method !== 'POST') {
       return json({ error: 'POST only' }, 405, cors);
     }
@@ -326,10 +1075,33 @@ export default {
       return json({ error: 'invalid json' }, 400, cors);
     }
 
+    /* ---------- テナント解決 ----------
+       body.salon（?s= のslug）があればD1からそのサロンを読む。
+       無指定なら従来どおり＝直書きナレッジ（chainonjoli）で動く。
+       これが「既存を壊さない」ためのフォールバック */
+    let tenant = null;
+    if (body.salon) {
+      tenant = await loadTenant(env, body.salon);
+      if (!tenant) return json({ error: 'salon not found' }, 404, cors);
+      if (tenant.status !== 'active') return json({ error: 'unavailable' }, 403, cors);
+    }
+    /* 利用量の記録先。従来経路の分もchainonjoliのテナントに載せる（原価の見える化） */
+    const usageTenant = tenant || await loadTenant(env, 'chainonjoli');
+
+    /* レート制限：テナント経路はサロン別、従来経路は今までどおり全体で */
+    const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+    const limited = tenant ? await tenantLimited(env, tenant, ip) : rateLimited(ip, env);
+    if (limited) {
+      return json({
+        reply: '申し訳ありません、' + limited + '。お急ぎの場合は公式LINEまたはお電話でお問い合わせください。',
+        reserve: true,
+      }, 200, cors);
+    }
+
     /* AIコンテンツファクトリー（生成・商品抽出） */
     if (body.dept === 'factory') {
       try {
-        return await handleFactory(body, env, cors);
+        return await handleFactory(body, env, cors, usageTenant);
       } catch (e) {
         console.log('factory error', String(e));
         return json({ error: 'factory failed' }, 502, cors);
@@ -345,10 +1117,15 @@ export default {
       return json({ error: 'messages required' }, 400, cors);
     }
 
+    /* ナレッジ：テナントがあればその設定から組み立て、なければ直書き（chainonjoli） */
+    const salon = tenant ? configToKnowledge(tenant.config) : SALON;
+
     /* 受付は短文・低遅延でよい（Claude時は effort low）。品質はナレッジ密度で担保 */
     let reply;
     try {
-      reply = await callAI(env, { system: buildSystem(), messages, maxTokens: 4096, lowEffort: true });
+      const r = await callAI(env, { system: buildSystem(salon), messages, maxTokens: 4096, lowEffort: true });
+      reply = r.text;
+      await recordUsage(env, usageTenant, r.usage);
     } catch (e) {
       /* 安全側の応答処理：refusal は定型文へ */
       if (e && e.message === 'refusal') {

@@ -92,6 +92,14 @@
   .hint-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
   .prod-chips{display:flex;flex-wrap:wrap;gap:8px}
   .gen-loading{text-align:center;padding:40px 0 10px;color:var(--muted);font-size:13px;display:none}
+  .idea-box{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin:4px 0 22px}
+  .idea-box .gen-loading{padding:22px 0 6px}
+  .idea-card{border:1px solid var(--line);border-radius:14px;padding:14px;margin-top:10px;background:var(--paper,#FCFBF9)}
+  .idea-card .im{display:inline-block;font-size:10.5px;font-weight:600;letter-spacing:.08em;color:var(--accent-deep);background:var(--accent-soft);border-radius:8px;padding:2px 9px;margin-bottom:6px}
+  .idea-card b{display:block;font-size:14.5px;margin-bottom:4px}
+  .idea-card .an{font-size:12.5px;color:var(--muted);line-height:1.8;margin:0 0 4px}
+  .idea-card .hk{font-size:12.5px;line-height:1.7;margin:0 0 10px}
+  .idea-card .use{width:100%;border:1px solid var(--line);border-radius:999px;padding:10px 0;font-size:13px;font-weight:600;color:var(--accent-deep);background:var(--accent-soft)}
   .gen-loading.show{display:block}
   .gen-loading .dots i{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent);margin:0 3px;animation:bounce 1s infinite}
   .gen-loading .dots i:nth-child(2){animation-delay:.15s}
@@ -184,9 +192,22 @@
       <section class="screen" id="f-create">
         <div class="topbar"><button class="back" onclick="goF('f-home')">←</button><span class="t">コンテンツを作る</span></div>
 
+        <div class="idea-box">
+          <label class="lbl" for="idea-topic" style="margin-top:0">💡 ネタに迷ったら <small>（お題ひとつでAIがネタを提案）</small></label>
+          <div style="display:flex;gap:8px">
+            <input id="idea-topic" placeholder="例：8月の乾燥対策、お盆の営業、新商品"
+              style="flex:1;min-width:0;border:1px solid var(--line);border-radius:14px;padding:12px 14px;background:var(--card);font-size:14.5px">
+            <button class="btn accent" id="idea-btn" style="flex:none" onclick="makeIdeas()">ネタ出し</button>
+          </div>
+          <p style="font-size:11.5px;color:var(--muted);margin:8px 2px 0">空欄のままでもOK。いまの季節と業種に合わせて提案します。</p>
+          <div class="gen-loading" id="idea-loading"><div class="dots"><i></i><i></i><i></i></div><p style="margin:12px 0 0">ネタを考えています…</p></div>
+          <div id="idea-list"></div>
+        </div>
+
         <label class="lbl" for="theme-input">1. テーマ <small>（自由に書いてください）</small></label>
         <textarea id="theme-input" class="big" placeholder="例：乾燥肌向けの保湿ケアのご紹介"></textarea>
         <div class="hint-chips" id="theme-hints"></div>
+        <div id="idea-note" hidden style="margin:8px 0 0;padding:9px 12px;background:var(--accent-soft);border-radius:10px;font-size:11.5px;line-height:1.6"></div>
 
         <span class="lbl">2. 商品を選ぶ <small>（なくてもOK）</small></span>
         <div class="prod-chips" id="create-prods"></div>
@@ -379,9 +400,46 @@ if(SC && SC.theme){
   r.setProperty('--accent-soft', SC.theme.accentSoft);
 }
 
-/* かんたん接続（Gemini鍵の直貼り）を優先。なければ中継役（Worker）のURL */
+/* かんたん接続（Gemini鍵の直貼り）を優先。なければ中継役（Worker）のURL。
+   ただしポータル（?s=&k=）から開かれたテナント運用時は、利用量がそのサロンの
+   ものとして記録されるよう、管理された中継役を優先する */
 const aiOn = () => !!((profile.geminiKey && profile.geminiKey.trim()) || (profile.aiEndpoint && profile.aiEndpoint.trim()));
-const directGemini = () => !!(profile.geminiKey && profile.geminiKey.trim());
+const directGemini = () => !!(profile.geminiKey && profile.geminiKey.trim()) && !(PORTAL.slug && profile.aiEndpoint);
+
+/* ============ オーナーポータル連携（?s=&k= 付きで開かれたとき） ============
+   ・AI接続先を自動設定（手動設定が不要に）
+   ・テナントの店名・紹介・テーマ色を自動で合わせる
+   ・AI利用量がそのサロンのものとして記録される（salonを添える）
+   パラメータ無しで開いた場合は従来と完全に同じ動作 */
+const PQ = new URLSearchParams(location.search);
+const PORTAL = { slug: (PQ.get('s') || '').toLowerCase(), key: PQ.get('k') || '' };
+if (PORTAL.slug && PORTAL.key) {
+  if (SC && SC.ai && SC.ai.endpoint) { profile.aiEndpoint = SC.ai.endpoint; store.set('profile', profile); }
+  /* テナント設定の取得は中継役（Worker）だけが持つ機能。Gemini鍵の有無は関係しない */
+  if (profile.aiEndpoint) {
+    fetch(profile.aiEndpoint.replace(/\/$/, '') + '/config?s=' + encodeURIComponent(PORTAL.slug))
+      .then(r => r.ok ? r.json() : null)
+      .then(cfg => {
+        if (!cfg || !cfg.brand) return;
+        profile.shopName = cfg.brand.name || profile.shopName;
+        profile.intro = cfg.brand.tagline || profile.intro;
+        store.set('profile', profile);
+        if (cfg.theme) {
+          const r = document.documentElement.style;
+          r.setProperty('--accent', cfg.theme.accent);
+          r.setProperty('--accent-deep', cfg.theme.accentDeep);
+          r.setProperty('--accent-soft', cfg.theme.accentSoft);
+        }
+        renderHome();
+      }).catch(() => {});
+  }
+  /* 戻る導線 */
+  const bar = document.createElement('a');
+  bar.href = 'owner.html?s=' + encodeURIComponent(PORTAL.slug) + '&k=' + encodeURIComponent(PORTAL.key);
+  bar.textContent = '← ポータルへ戻る';
+  bar.style.cssText = 'display:block;padding:12px 20px;margin:0 -20px;font-size:13px;font-weight:600;color:var(--accent-deep);background:var(--accent-soft);text-decoration:none';
+  document.getElementById('f-home').prepend(bar);
+}
 
 /* ============ 画面切替 ============ */
 function goF(id){
@@ -449,6 +507,86 @@ function renderCreate(){
   }
 }
 
+/* ============ ネタ出し（お題→投稿ネタの提案） ============ */
+async function makeIdeas(){
+  const topic=document.getElementById('idea-topic').value.trim();
+  const btn=document.getElementById('idea-btn');
+  const loading=document.getElementById('idea-loading');
+  const list=document.getElementById('idea-list');
+  btn.disabled=true; list.innerHTML=''; loading.classList.add('show');
+
+  let ideas=null;
+  if(aiOn()){
+    try{
+      if(directGemini()){
+        ideas=await geminiIdeas(topic);
+      }else{
+        const res=await fetch(profile.aiEndpoint,{
+          method:'POST',headers:{'content-type':'application/json'},
+          body:JSON.stringify({dept:'factory',action:'ideas',salon:PORTAL.slug||undefined,input:{
+            topic, month:new Date().getMonth()+1,
+            profile:{shopName:profile.shopName,industry:profile.industry,intro:profile.intro,tone:profile.tone}
+          }})
+        });
+        if(!res.ok) throw new Error(res.status);
+        ideas=(await res.json()).ideas;
+      }
+    }catch(e){
+      console.warn('ideas failed', e);
+      toast('AIにつながらなかったため、定番ネタを表示します');
+    }
+  }
+  if(!ideas||!ideas.length) ideas=demoIdeas(topic);
+  renderIdeas(ideas);
+  btn.disabled=false; loading.classList.remove('show');
+}
+
+/* AI未接続・障害時の定番ネタ（お店の事実は含めない） */
+function demoIdeas(topic){
+  const t=topic||'いまの季節のケア';
+  return [
+    {title:t+'の豆知識', media:'フィード投稿', angle:'お客様が「知らなかった」と保存したくなる、プロならではの豆知識をひとつに絞って。', hook:'実は、9割の方が誤解しています'},
+    {title:t+'のよくある質問', media:'LINE配信', angle:'よく聞かれる質問にひとつ答える形式。最後に「他にも気になることがあればどうぞ」と誘導。', hook:'「'+t+'って実際どうなの？」に答えます'},
+    {title:t+'のビフォーアフター企画', media:'リール', angle:'施術やケアの前後を見せる企画。（お客様の許可を得た写真・具体的な変化を入れてください）', hook:'たった1回で、ここまで変わる？'},
+    {title:'サロンの日常・裏側', media:'ストーリーズ', angle:'準備風景や道具のこだわりなど、人柄が伝わる日常の1コマ。（今日あった出来事を入れてください）', hook:'開店前の、静かな時間'},
+    {title:'メニューのひとつを深掘り', media:'フィード投稿', angle:'1つのメニューに絞って「誰に・何が・どう良いか」を丁寧に。（メニュー名を入れてください）', hook:'このメニュー、実はいちばん奥が深いんです'},
+    {title:'お客様の声のご紹介', media:'フィード投稿', angle:'いただいた感想をひとつ紹介し、同じ悩みの方へ一言添える。（実際の声を入れてください）', hook:'先日、うれしい言葉をいただきました'},
+  ];
+}
+
+function renderIdeas(ideas){
+  const list=document.getElementById('idea-list');
+  list.innerHTML=ideas.map((i,n)=>
+    '<div class="idea-card">'+
+      (i.media?'<span class="im">'+esc(i.media)+'</span>':'')+
+      '<b>'+esc(i.title)+'</b>'+
+      (i.angle?'<p class="an">'+esc(i.angle)+'</p>':'')+
+      (i.hook?'<p class="hk">「'+esc(i.hook)+'」</p>':'')+
+      '<button class="use" onclick="useIdea('+n+')">このネタで8種つくる</button>'+
+    '</div>').join('');
+  list._ideas=ideas;
+}
+/* 選んだネタ。タイトルだけをテーマ欄に入れ、切り口・フックは構造のままAIへ渡す。
+   （説明文をテーマ欄に混ぜると、そのまま本文へ紛れ込んで「コピペできない下書き」になるため） */
+let selectedIdea=null;
+function useIdea(n){
+  const i=document.getElementById('idea-list')._ideas[n];
+  selectedIdea={title:i.title||'', angle:i.angle||'', hook:i.hook||''};
+  document.getElementById('theme-input').value=selectedIdea.title;
+  const note=document.getElementById('idea-note');
+  note.textContent='💡 このネタの切り口とフック案も一緒にAIへ渡します'+
+    (selectedIdea.hook?'：「'+selectedIdea.hook+'」':'');
+  note.hidden=false;
+  toast('ネタをセットしました。「この内容でつくる」を押してください');
+  document.getElementById('theme-input').scrollIntoView({behavior:'smooth',block:'center'});
+}
+/* テーマを手で書き換えたら、内容がずれるためネタの切り口・フックは外す */
+document.getElementById('theme-input').addEventListener('input',()=>{
+  if(!selectedIdea)return;
+  selectedIdea=null;
+  document.getElementById('idea-note').hidden=true;
+});
+
 let currentResult=null;   /* 表示中の履歴アイテム */
 let resultBack='f-create';
 
@@ -471,7 +609,13 @@ async function startGenerate(){
       mode='ai';
     }catch(e){
       console.warn('ai generate failed', e);
-      toast('AIにつながらなかったため、お試しモードで作成しました');
+      /* AI接続済みで失敗したときは、お試しテンプレで代用しない。
+         テンプレ文が「AIの完成文」として保存されると紛らわしいため、
+         はっきり伝えて再試行してもらう */
+      btn.disabled=false;
+      loading.classList.remove('show');
+      toast('AIにつながりませんでした。少し時間をおいて、もう一度お試しください');
+      return;
     }
   }
   if(!contents){
@@ -533,14 +677,15 @@ function aiCoreLines(){
     '',
     '【必ず守るルール】',
     '1. 与えられたテーマ・商品情報だけを根拠にする。価格・効果・成分を創作しない。',
-    '2. 薬機法・医療広告に配慮し、次の表現を使わない：'+AI_NG.join('、')+'。効果は「〜が期待できます」の範囲で。',
+    '2. 薬機法・医療広告に配慮し、次の表現を使わない：'+AI_NG.join('、')+'。効果は「〜が期待できます」「〜と感じる方が多いです」の範囲で。',
     '3. 誇大表現・断定・他店批判をしない。',
-    '4. 商品情報に「注意点」があれば、ブログとメールマガジンには必ず注意書きとして含める。'
+    '4. 商品情報に「注意点」があれば、ブログとメールマガジンには必ず注意書きとして含める。',
+    '5. そのまま投稿できる完成文だけを書く。「◯◯を入れてください」「〜と書く」のような穴埋め・指示文・メモを本文に残さない。価格・実績・お客様の声など与えられていない事実は、書かずに自然に成立する文にする。'
   ].filter(s=>s!=='');
 }
 function buildAISystem(){
   return aiCoreLines().concat([
-    '5. 出力はJSONのみ。前後に説明文やコードフェンスを付けない。',
+    '6. 出力はJSONのみ。前後に説明文やコードフェンスを付けない。',
     '',
     '【出力形式（この8キーを持つJSONオブジェクト）】',
     '{'+KINDS.map(k=>'"'+k.key+'":"..."').join(',')+'}',
@@ -549,9 +694,14 @@ function buildAISystem(){
     ...KINDS.map(k=>'- '+k.key+' … '+KIND_SPECS[k.key])
   ]).join('\n');
 }
+/* ネタ出しから来た切り口・フックは、テーマ文字列に混ぜず構造のまま渡す
+   （混ぜると説明文が本文に紛れ込み「コピペできない下書き」になるため） */
 function buildUserMsg(theme, product){
+  const idea=selectedIdea||{};
   return [
     theme?'【テーマ】\n'+theme:'【テーマ】\n（指定なし。下の商品を主役にした発信を作る）',
+    idea.angle?'\n【切り口（この観点で書く）】\n'+idea.angle:'',
+    idea.hook?'\n【冒頭フック（本文の1文目はこのフックをほぼそのまま使う）】\n'+idea.hook:'',
     product?'\n【商品情報（登録ナレッジ）】\n'+JSON.stringify({
       商品名:product.name,ブランド名:product.brand,特徴:product.features,効果:product.effects,
       使用方法:product.usage,おすすめの人:product.target,注意点:product.cautions
@@ -587,6 +737,38 @@ async function geminiGenerate(theme, product){
   if(!out.instagram) throw new Error('empty result');
   return out;
 }
+/* ネタ出し（server/worker.js の buildIdeasSystem と同期させること） */
+async function geminiIdeas(topic){
+  const system=[
+    'あなたは小規模サロン・店舗のSNS企画のプロフェッショナルです。',
+    'お店の「中の人」の相談役として、投稿ネタ（企画案）を提案します。',
+    '',
+    '【お店のプロフィール】',
+    '店名：'+(profile.shopName||'（未設定）'),
+    '業種：'+(profile.industry||'サロン'),
+    profile.intro?'お店の紹介：'+profile.intro:'',
+    '文体：'+(AI_TONES[profile.tone]||AI_TONES.soft),
+    '【いまの月】'+(new Date().getMonth()+1)+'月（季節感をネタに活かす）',
+    '',
+    '【必ず守るルール】',
+    '1. お題に沿って投稿ネタを8個提案する。お題が無ければ、季節と業種から自由に8個。',
+    '2. 切り口を混ぜること：豆知識／よくある質問への回答／お客様の変化・声の紹介／メニュー・商品の紹介／季節のケア／お店の日常・人柄／ご予約やお知らせ／体験・企画もの。同じ切り口を3つ以上並べない。',
+    '3. お店の事実（価格・効果・実在のお客様の声・空き状況など）を創作しない。実情が必要な部分は「（◯◯を入れてください）」と空欄で示す。',
+    '4. 次の表現を使わない：'+AI_NG.join('、')+'。',
+    '5. 出力はJSONのみ。前後に説明文やコードフェンスを付けない。',
+    '',
+    '【出力形式】',
+    '{"ideas":[{"title":"ネタのタイトル（15字前後）","angle":"何をどう伝えるかの切り口説明（1〜2文）","media":"リール／フィード投稿／ストーリーズ／LINE配信／ブログ のいずれか","hook":"投稿冒頭の1行フック案"}]}'
+  ].filter(s=>s!=='').join('\n');
+  const text=await geminiCall({
+    system,
+    userParts:[{text:topic?'【お題】\n'+topic:'【お題】\n（指定なし。季節と業種から提案してください）'}],
+    maxTokens:4096
+  });
+  const raw=parseJsonLoose(text);
+  return Array.isArray(raw.ideas)?raw.ideas:null;
+}
+
 const EXTRACT_PROMPT=[
   'この資料（商品カタログ・パンフレット等）から商品情報を読み取り、次のキーを持つJSONオブジェクトだけを出力してください。',
   '{"name":"商品名","brand":"ブランド名","features":"特徴","effects":"効果","usage":"使用方法","target":"おすすめの人","cautions":"注意点"}',
@@ -613,9 +795,11 @@ async function aiGenerate(theme, product){
     method:'POST',
     headers:{'content-type':'application/json'},
     body:JSON.stringify({
-      dept:'factory', action:'generate',
+      dept:'factory', action:'generate', salon: PORTAL.slug || undefined,
       input:{
         theme: theme||'',
+        angle: selectedIdea?selectedIdea.angle:'',
+        hook: selectedIdea?selectedIdea.hook:'',
         product: product ? {
           name:product.name, brand:product.brand, features:product.features,
           effects:product.effects, usage:product.usage, target:product.target, cautions:product.cautions
@@ -830,7 +1014,7 @@ const PASTE_MARK = k => '=== ' + k.label + ' ===';
 
 function buildPastePrompt(theme, product){
   return aiCoreLines().concat([
-    '5. 下の【出力形式】の見出しを、書かれているとおりそのまま使う。前置き・あとがき・感想は書かない。',
+    '6. 下の【出力形式】の見出しを、書かれているとおりそのまま使う。前置き・あとがき・感想は書かない。',
     '',
     '【出力形式】',
     '次の8つを、この見出しをそのまま付けて、上から順に書いてください。',
@@ -996,7 +1180,7 @@ document.getElementById('import-file').addEventListener('change',async e=>{
     }else{
       const res=await fetch(profile.aiEndpoint,{
         method:'POST',headers:{'content-type':'application/json'},
-        body:JSON.stringify({dept:'factory',action:'extract',file:{mediaType:file.type||'application/pdf',data:b64}})
+        body:JSON.stringify({dept:'factory',action:'extract',salon:PORTAL.slug||undefined,file:{mediaType:file.type||'application/pdf',data:b64}})
       });
       if(!res.ok) throw new Error('http '+res.status);
       const data=await res.json();
