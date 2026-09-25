@@ -313,7 +313,7 @@ owner.html ──POST /crm {slug,token,action}──▶ D1 customers/tenant_sett
 | A-1 | ~~AI受付を実接続して動作検証する~~ **完了（2026-08-08）** | Gemini（gemini-3.6-flash・有料）＋Cloudflare WorkerのGit連携で接続。`check.html` の診断5項目で合格。回数上限は `wrangler.jsonc` の `RATE_PER_DAY=60` |
 | A-2 | **API側の月額上限を設定する** | Anthropic Console → Settings → Limits。Gemini の場合は Google Cloud の予算アラート。**オーナー本人のログインが必要なためAIでは実行できません** |
 | A-3 | **`intro.html` のデモ用PIN表記の扱いを決める** | admin.htmlは架空データのみになったためリスクは低下。デモ専用PINへの変更 or 表記継続をオーナーが判断 |
-| A-4 | **`worker.js` のナレッジ二重管理を解消する** | `worker.js` 内の `SALON` 定数が `salon-config.js` の内容を手動コピーしている。価格を変えると片方だけ古くなる（§11-1） |
+| A-4 | ~~`worker.js` のナレッジ二重管理を解消する~~ **完了（2026-08-25）** | slug無しの従来経路も既定テナント（`DEFAULT_SALON`・既定 chainonjoli）のD1設定からナレッジを組み立てるよう変更。ポータルでの保存がそのままAI回答の正になる。直書き `SALON` 定数はD1障害時の保険としてのみ残置（§11-1） |
 | A-5 | **料金を決めて `intro.html` に載せる** | 「まずご相談」より金額が見えるほうが問い合わせは増える |
 | A-6 | ~~管理画面の「保存」問題~~ **解消（オーナーポータルが実管理を担当）** | `admin.html` は商談デモ専用として存置。混同を避けるため、いずれページ冒頭に「デモ」表記を推奨 |
 
@@ -323,7 +323,7 @@ owner.html ──POST /crm {slug,token,action}──▶ D1 customers/tenant_sett
 |---|---|
 | B-1 | `index.html` に description / OGP / 構造化データを追加（SEO） |
 | B-2 | `editor.html` に `ai.endpoint` と `admin.pin` の入力欄を追加（今は手編集が必要） |
-| B-3 | `editor.html` / `factory.html` に `noindex` を付与（オーナー用ツールが検索に出る） |
+| B-3 | ~~`editor.html` / `factory.html` に `noindex` を付与~~ **完了（2026-08-25）**（オーナー用の全ページが `noindex, nofollow` になった） |
 | B-4 | `factory.html` の接続設定を `salon-config.js` の `ai.endpoint` と統一 |
 | B-5 | アクセス解析の導入（どの画面が見られているか分からない） |
 | B-6 | AI秘書（来店周期の見守り・フォロー下書き）のロジック実装 |
@@ -489,6 +489,7 @@ SNS投稿もLINE配信も、AIが自動送信することは**設計上ありま
 | `ALLOWED_ORIGIN` | 推奨 | 許可するサイトのオリジン。未設定だと全オリジン許可（開発用） |
 | `RATE_PER_MIN` | 任意 | 同一IPの1分あたり上限。既定 `8` |
 | `RATE_PER_DAY` | 任意 | 全体の1日あたり上限。既定 `500` |
+| `DEFAULT_SALON` | 任意 | slug無しの従来経路が使う既定テナントのslug。既定 `chainonjoli`。AI受付のナレッジと利用量の記録先の両方に使う |
 
 ### クライアント側の設定値（環境変数ではありません）
 | 場所 | キー | 用途 |
@@ -503,10 +504,13 @@ SNS投稿もLINE配信も、AIが自動送信することは**設計上ありま
 
 ## 11. Known Issues
 
-### 11-1. ナレッジが二重管理になっている 🔴 重要
-`server/worker.js` の先頭にある `SALON` 定数は、`salon-config.js` の内容を**手でコピーしたもの**です。
-価格やFAQを変更した際、**片方だけ直すとAI受付が古い情報を答えます。**
-現状は「両方を必ず同時に直す」しかありません。Priority A-4 で解消すべき箇所です。
+### 11-1. ナレッジが二重管理になっている → **解消（2026-08-25）**
+AI受付のナレッジは、slug無しの従来経路でも**D1の既定テナント（`DEFAULT_SALON`・既定 chainonjoli）**
+から読むようになりました。オーナーポータル／エディタで保存した内容がそのままAI回答の正です。
+`server/worker.js` の `SALON` 定数は**D1未設置・障害時の保険**としてのみ残っており、
+通常運用で手動同期する必要はありません（内容が古くなっている可能性がある点だけ留意）。
+なお、slug無しで表示される**画面側**（GitHub Pages の `salon-config.js`）は引き続き静的ファイルのため、
+表示とAI回答を揃えたいときは `salon-config.js` も更新してください。
 
 ### 11-2. 管理画面の「保存」が動かない → **解消（2026-08-08）**
 実管理はオーナーポータル（`owner.html`）＋設定エディタのサーバー保存に移行済み。

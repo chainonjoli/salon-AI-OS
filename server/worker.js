@@ -27,19 +27,24 @@
                           実際に止める役はこの上限が担う）
      ADMIN_TOKEN       … 管理API（/admin）の合言葉。Secretとして登録。
                          未設定なら管理APIは無効（503）
+     DEFAULT_SALON     … 任意。slug無しの従来経路が使う既定テナントのslug
+                         （既定 chainonjoli）。ナレッジと利用量記録の両方に使う
 
    マルチテナント（購入者ごとのサロン）:
      D1バインディング DB（wrangler.jsonc）＋ server/schema.sql が前提。
      ?s=slug 付きのアクセスはD1のテナント設定で動き、
      テナント別の上限（tenants.rate_per_*）と利用量記録（usage_daily）が効く。
-     D1未設定・slug無しなら従来どおり下の直書きナレッジで動く。
+     slug無しの従来経路も既定テナント（DEFAULT_SALON）のD1設定で動き、
+     D1未設定・障害時のみ下の直書きナレッジ（保険）で動く。
      運用手順は docs/07_tenants.md を参照。
    ========================================================= */
 
-/* ---------- サロンナレッジ（フォールバック用） ----------
-   D1にテナント登録済みなら ?s=slug 側はD1から読む。
-   この直書きは「slug無しの従来経路」と「D1障害時」の保険。
-   salon-config.js の内容と同期させてください */
+/* ---------- サロンナレッジ（緊急時フォールバック用） ----------
+   AI受付のナレッジは、slug無しの従来経路でもD1の既定テナント
+   （DEFAULT_SALON・既定 chainonjoli）から読む。オーナーがポータルで
+   保存した内容がそのまま正となり、手動同期は不要。
+   この直書きは「D1未設置・障害時」に受付を止めないための最後の保険。
+   古くなっている可能性があるため、価格等の正は必ずD1側を見ること */
 const SALON = {
   brand: {
     name: 'chainonjoli',
@@ -1077,16 +1082,18 @@ export default {
 
     /* ---------- テナント解決 ----------
        body.salon（?s= のslug）があればD1からそのサロンを読む。
-       無指定なら従来どおり＝直書きナレッジ（chainonjoli）で動く。
-       これが「既存を壊さない」ためのフォールバック */
+       無指定なら既定テナント（DEFAULT_SALON・既定 chainonjoli）のD1設定で動き、
+       D1が使えないときだけ直書きナレッジへ。これが「既存を壊さない」ためのフォールバック */
     let tenant = null;
     if (body.salon) {
       tenant = await loadTenant(env, body.salon);
       if (!tenant) return json({ error: 'salon not found' }, 404, cors);
       if (tenant.status !== 'active') return json({ error: 'unavailable' }, 403, cors);
     }
-    /* 利用量の記録先。従来経路の分もchainonjoliのテナントに載せる（原価の見える化） */
-    const usageTenant = tenant || await loadTenant(env, 'chainonjoli');
+    /* 既定テナント：slug無しの従来経路が使うサロン（利用量の記録先も兼ねる）。
+       原価の見える化のため、従来経路の分もこのテナントに載せる */
+    const defaultTenant = tenant ? null : await loadTenant(env, env.DEFAULT_SALON || 'chainonjoli');
+    const usageTenant = tenant || defaultTenant;
 
     /* レート制限：テナント経路はサロン別、従来経路は今までどおり全体で */
     const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
@@ -1117,8 +1124,12 @@ export default {
       return json({ error: 'messages required' }, 400, cors);
     }
 
-    /* ナレッジ：テナントがあればその設定から組み立て、なければ直書き（chainonjoli） */
-    const salon = tenant ? configToKnowledge(tenant.config) : SALON;
+    /* ナレッジ：指定テナント → 既定テナント（D1・オーナーが編集する正データ）の順。
+       D1未設置・障害時のみ直書き SALON で受付を続行する（A-4：二重管理の解消） */
+    const knowledgeTenant = tenant || defaultTenant;
+    const salon = knowledgeTenant && knowledgeTenant.config
+      ? configToKnowledge(knowledgeTenant.config)
+      : SALON;
 
     /* 受付は短文・低遅延でよい（Claude時は effort low）。品質はナレッジ密度で担保 */
     let reply;
